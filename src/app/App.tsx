@@ -15,6 +15,7 @@ import { CalibrationBanner, PickBanner } from '../components/layout/Banners';
 import { StatsBar } from '../components/layout/StatsBar';
 import { TopBar } from '../components/layout/TopBar';
 import { TableEditor } from '../components/seat-editor/TableEditor';
+import { ListView } from '../components/list-view/ListView';
 import { SeatingMap } from '../components/seating-map/SeatingMap';
 import { Welcome } from './Welcome';
 
@@ -125,14 +126,16 @@ export function App() {
         </div>
         <div className="corpo">
           <GuestSidebar />
-          {mode === '3d' && !calibrating ? (
+          {mode === 'lista' && !calibrating ? (
+            <ListView />
+          ) : mode === '3d' && !calibrating ? (
             <Suspense fallback={<div className="mapa-area"><div className="vazio">Carregando visualização 3D…</div></div>}>
               <Hall3D />
             </Suspense>
           ) : (
             <SeatingMap />
           )}
-          <TableEditor />
+          {(mode !== 'lista' || calibrating) && <TableEditor />}
         </div>
       </div>
       <DragOverlay dropAnimation={null}>

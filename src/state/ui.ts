@@ -2,7 +2,7 @@ import { create } from 'zustand';
 
 export type Dialog =
   | { type: 'guest-form'; guestId?: string; presetSeat?: { table: number; seat: number } }
-  | { type: 'confirm'; title: string; body: string; confirmLabel: string; danger?: boolean; onConfirm: () => void }
+  | { type: 'confirm'; title: string; body: string; confirmLabel: string; danger?: boolean; onConfirm: () => void; secondaryLabel?: string; onSecondary?: () => void }
   | { type: 'import' }
   | { type: 'export' }
   | { type: 'backup' }

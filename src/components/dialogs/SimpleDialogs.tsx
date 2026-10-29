@@ -17,6 +17,9 @@ export function ConfirmDialog({ d }: { d: Extract<Dialog, { type: 'confirm' }> }
       footer={
         <>
           <button className="btn" onClick={close} data-autofocus>Cancelar</button>
+          {d.secondaryLabel && d.onSecondary && (
+            <button className="btn" onClick={() => { close(); d.onSecondary?.(); }} data-testid="confirmar-secundario">{d.secondaryLabel}</button>
+          )}
           <button className={`btn ${d.danger ? 'perigo-forte' : 'primario'}`} onClick={() => { close(); d.onConfirm(); }} data-testid="confirmar">
             {d.confirmLabel}
           </button>

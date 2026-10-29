@@ -337,3 +337,43 @@ export function swapTables(state: SeatingState, a: number, b: number): OpResult 
     : `${na} convidado(s) da mesa ${a} foram para a mesa ${b}`;
   return commit({ ...state, assignments }, msg);
 }
+
+/** Próximo lugar livre a partir de uma mesa (segue para as mesas seguintes; volta ao início). */
+export function nextFreeSeat(assignments: Assignments, fromTable: number): SeatRef | null {
+  for (let k = 0; k < TABLE_COUNT; k++) {
+    const t = ((fromTable - 1 + k) % TABLE_COUNT) + 1;
+    const free = freeSeats(assignments, t);
+    if (free.length) return { table: t, seat: free[0] };
+  }
+  return null;
+}
+
+/**
+ * Distribuição em sequência: coloca cada convidado (na ordem dada) no próximo lugar
+ * livre, começando na mesa indicada e passando para a seguinte quando lotar.
+ * Quem já está sentado é ignorado. Quem não couber continua na lista.
+ */
+export function placeSequential(state: SeatingState, guestIds: string[], startTable = 1): OpResult & { placed?: number; left?: number } {
+  const assignments: Assignments = { ...state.assignments };
+  const seated = new Set(Object.values(assignments));
+  let table = startTable, placed = 0, left = 0;
+  for (const id of guestIds) {
+    if (!state.guests[id] || seated.has(id)) continue;
+    const ref = nextFreeSeat(assignments, table);
+    if (!ref) { left++; continue; }
+    assignments[seatKey(ref.table, ref.seat)] = id;
+    seated.add(id);
+    table = ref.table;
+    placed++;
+  }
+  if (!placed) return { ok: false, code: left ? 'not-enough-seats' : 'same-seat', reason: left ? 'Não há lugares livres.' : 'Ninguém para distribuir (todos já estão sentados).' };
+  const r = commit({ ...state, assignments }, `${placed} convidado(s) colocados em sequência${left ? `; ${left} ficaram sem lugar (salão cheio)` : ''}`);
+  return r.ok ? { ...r, placed, left } : r;
+}
+
+/** Tira todos das mesas (os cadastros continuam na lista). */
+export function unassignAll(state: SeatingState): OpResult {
+  const n = Object.keys(state.assignments).length;
+  if (!n) return { ok: false, code: 'not-seated', reason: 'Ninguém está sentado.' };
+  return commit({ ...state, assignments: {} }, `${n} convidado(s) voltaram para a lista`);
+}

@@ -32,6 +32,18 @@ No Windows também dá para usar `iniciar-windows.bat`; no Mac/Linux, `./iniciar
 
 Para testar, use `exemplos/convidados-exemplo.csv`, que tem 60 nomes fictícios.
 
+## Tela "Mesas em lista"
+
+O botão **Mesas em lista**, no topo, mostra as 28 mesas como cartões, sem o mapa. Para usar:
+
+- Digite um nome e tecle Enter. A pessoa entra no próximo lugar livre e, quando a mesa lota, os próximos nomes vão para a mesa seguinte.
+- Se o nome não existir na lista, ele é cadastrado na hora.
+- Clique em "Mesa N" no cartão para escolher por onde começar.
+- **Colocar em sequência** distribui de uma vez todos os confirmados sem lugar, na ordem da planilha.
+- **Tirar todos das mesas** devolve todo mundo para a lista, sem excluir nenhum cadastro.
+
+Na importação, você escolhe se os convidados ficam só na lista ou se os confirmados já vão para as mesas.
+
 ## A planta
 
 A planta original (`src/assets/planta.png`, cópia em `exemplos/planta-original.png`) já vem embutida. Os centros das 28 mesas foram medidos na própria imagem e estão em `src/data/floorplan.ts`, como coordenadas normalizadas de 0 a 1. Para isso:

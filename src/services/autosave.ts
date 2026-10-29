@@ -16,17 +16,25 @@ function offerSeed() {
   const parsed = parseBackup(JSON.stringify(seed), st.prefs);
   if (!parsed.ok) return;
   const current = Object.keys(st.seating.guests).length;
+  const load = (withSeats: boolean) => {
+    const s2 = useApp.getState();
+    const snap = parsed.snapshot;
+    s2.replaceAll({
+      ...snap,
+      seating: withSeats ? snap.seating : { ...snap.seating, assignments: {} },
+      prefs: { ...snap.prefs, tipsDismissed: Array.from(new Set([...s2.prefs.tipsDismissed, 'boas-vindas'])) },
+    }, 'Carregar lista do casamento');
+    s2.toast('ok', withSeats ? `Lista carregada: ${parsed.summary}.` : `Lista carregada: ${Object.keys(snap.seating.guests).length} convidados, todos sem mesa.`, true);
+    try { localStorage.setItem(key, new Date().toISOString()); } catch { /* ignora */ }
+  };
   confirmAction({
     title: 'Carregar a lista do casamento?',
-    body: `Esta versão do organizador traz ${parsed.summary}.` +
+    body: `Esta versão do organizador traz ${parsed.summary}. Você pode carregar já com os confirmados nas mesas (na ordem da planilha) ou só a lista, com todos sem mesa.` +
       (current ? ` Os ${current} convidados que estão aqui agora serão substituídos (dá para desfazer logo em seguida).` : ''),
-    confirmLabel: 'Carregar lista',
-    onConfirm: () => {
-      const s2 = useApp.getState();
-      s2.replaceAll({ ...parsed.snapshot, prefs: { ...parsed.snapshot.prefs, tipsDismissed: Array.from(new Set([...s2.prefs.tipsDismissed, 'boas-vindas'])) } }, 'Carregar lista do casamento');
-      s2.toast('ok', `Lista carregada: ${parsed.summary}.`, true);
-      try { localStorage.setItem(key, new Date().toISOString()); } catch { /* ignora */ }
-    },
+    confirmLabel: 'Carregar já nas mesas',
+    onConfirm: () => load(true),
+    secondaryLabel: 'Carregar só a lista (sem mesa)',
+    onSecondary: () => load(false),
   });
 }
 

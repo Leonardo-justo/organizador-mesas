@@ -1,4 +1,4 @@
-import { Box, Download, Save, FileUp, HelpCircle, Map as MapIcon, Printer, Redo2, ShieldCheck, Undo2, Users } from 'lucide-react';
+import { Box, Download, List, Save, FileUp, HelpCircle, Map as MapIcon, Printer, Redo2, ShieldCheck, Undo2, Users } from 'lucide-react';
 import { saveNow } from '../../services/autosave';
 import { useApp } from '../../state/store';
 import { useUi } from '../../state/ui';
@@ -73,6 +73,16 @@ export function TopBar() {
           data-testid="alternar-modo"
         >
           {mode === '2d' ? <Box /> : <MapIcon />} {mode === '2d' ? 'Alternar para 3D' : 'Alternar para 2D'}
+        </button>
+        <button
+          className="btn"
+          aria-pressed={mode === 'lista'}
+          onClick={() => setPrefs({ mode: mode === 'lista' ? '2d' : 'lista' })}
+          disabled={calibrating}
+          data-testid="modo-lista"
+          title="Ver as mesas em lista e ir adicionando convidados em sequência"
+        >
+          <List /> Mesas em lista
         </button>
         <button className="btn" aria-label="Importar convidados" onClick={() => open({ type: 'import' })}>
           <FileUp /> <span className="rotulo-longo">Importar convidados</span>

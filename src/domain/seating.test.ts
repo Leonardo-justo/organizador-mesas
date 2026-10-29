@@ -160,3 +160,30 @@ describe('trocar mesa inteira', () => {
     expect(S.swapTables(s, 5, 6).ok).toBe(false);
   });
 });
+
+describe('distribuição em sequência', () => {
+  it('preenche na ordem, pula mesa lotada e respeita quem já está sentado', () => {
+    const { state, ids } = stateWith(Array.from({ length: 14 }, (_, i) => `Pessoa ${i}`));
+    let s = ok(S.placeGuest(state, ids[13], { table: 1, seat: 3 }));
+    const r = S.placeSequential(s, ids, 1);
+    s = ok(r);
+    expect(s.assignments['1-1']).toBe(ids[0]);
+    expect(s.assignments['1-3']).toBe(ids[13]);
+    expect(s.assignments['1-4']).toBe(ids[2]);
+    expect(s.assignments['2-1']).toBe(ids[9]);
+    expect(S.tableOccupancy(s.assignments, 2)).toBe(4);
+  });
+  it('começa na mesa escolhida e volta ao início quando chega na 28', () => {
+    const { state, ids } = stateWith(Array.from({ length: 12 }, (_, i) => `P ${i}`));
+    const s = ok(S.placeSequential(state, ids, 28));
+    expect(S.tableOccupancy(s.assignments, 28)).toBe(10);
+    expect(S.tableOccupancy(s.assignments, 1)).toBe(2);
+  });
+  it('tirar todos das mesas mantém os cadastros', () => {
+    const { state, ids } = stateWith(['A', 'B']);
+    const s = ok(S.placeSequential(state, ids, 5));
+    const u = ok(S.unassignAll(s));
+    expect(u.assignments).toEqual({});
+    expect(Object.keys(u.guests)).toHaveLength(2);
+  });
+});

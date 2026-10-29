@@ -37,7 +37,7 @@ export interface SeatingState {
 }
 
 export interface ViewPrefs {
-  mode: '2d' | '3d';
+  mode: '2d' | '3d' | 'lista';
   zoom: number;
   /** Fator de espaçamento visual das mesas no mapa 2D (1 = como na planta). */
   spacing: number;

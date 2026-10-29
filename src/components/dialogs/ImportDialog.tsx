@@ -22,6 +22,7 @@ export function ImportDialog() {
   const [hasHeader, setHasHeader] = useState(true);
   const [mapping, setMapping] = useState<ColumnMapping | null>(null);
   const [mode, setMode] = useState<'adicionar' | 'substituir'>('adicionar');
+  const [seatMode, setSeatMode] = useState<'lista' | 'sequencia'>('lista');
   const [replaceOk, setReplaceOk] = useState(false);
   const [overrides, setOverrides] = useState<Record<number, boolean>>({});
   const [error, setError] = useState('');
@@ -56,11 +57,22 @@ export function ImportDialog() {
     const guests = included.map((r) => r.guest);
     if (!guests.length) { setError('Nenhuma linha selecionada para importar.'); return; }
     const base = mode === 'substituir' ? { guests: {}, assignments: {} } : seating;
-    const r = S.addGuests(base, guests);
+    let r = S.addGuests(base, guests);
+    let seatedMsg = ' Todos ficaram na lista, sem mesa.';
+    if (r.ok && seatMode === 'sequencia') {
+      const confirmed = guests.filter((g) => g.rsvp === 'confirmado').map((g) => g.id);
+      const seq = confirmed.length ? S.placeSequential(r.state, confirmed, 1) : null;
+      if (seq?.ok) {
+        r = seq;
+        seatedMsg = ` ${seq.placed} confirmado(s) colocados nas mesas, na ordem da planilha${seq.left ? `; ${seq.left} ficaram sem lugar (salão cheio)` : ''}.`;
+      } else {
+        seatedMsg = ' Nenhum confirmado para colocar nas mesas; todos ficaram na lista.';
+      }
+    }
     if (apply(r, mode === 'substituir' ? 'Substituir convidados (importação)' : 'Importar convidados')) {
       const skipped = preview.rows.length - included.length;
       setResult(
-        `${guests.length} convidado(s) importado(s)` +
+        `${guests.length} convidado(s) importado(s).${seatedMsg}` +
           (mode === 'substituir' ? ' — cadastros anteriores e a distribuição foram substituídos' : '') +
           `. ${skipped ? `${skipped} possível(is) duplicata(s) não importada(s). ` : ''}` +
           `${preview.emptyLines.length} linha(s) vazia(s) e ${preview.errorLines.length} linha(s) com erro ignoradas.`,
@@ -174,6 +186,16 @@ export function ImportDialog() {
             <label className="opcao">
               <input type="radio" name="modo" checked={mode === 'substituir'} onChange={() => { setMode('substituir'); setReplaceOk(false); }} />
               <span><b>Substituir todos os cadastros</b><small>Apaga os {existing.length} cadastros atuais e toda a distribuição das mesas.</small></span>
+            </label>
+          </div>
+          <div className="opcoes" role="radiogroup" aria-label="Mesas depois de importar">
+            <label className="opcao">
+              <input type="radio" name="mesas" checked={seatMode === 'lista'} onChange={() => setSeatMode('lista')} data-testid="importar-sem-mesa" />
+              <span><b>Só adicionar à lista, sem colocar nas mesas</b><small>Você distribui depois, arrastando ou pela tela “Mesas em lista”.</small></span>
+            </label>
+            <label className="opcao">
+              <input type="radio" name="mesas" checked={seatMode === 'sequencia'} onChange={() => setSeatMode('sequencia')} data-testid="importar-em-sequencia" />
+              <span><b>Já colocar os confirmados nas mesas, na ordem da planilha</b><small>Preenche os lugares livres a partir da mesa 1. Pendentes e “não vai” ficam na lista.</small></span>
             </label>
           </div>
           {mode === 'substituir' && (

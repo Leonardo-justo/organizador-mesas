@@ -384,3 +384,45 @@ table.tabela { border-collapse: collapse; width: 100%; font-size: 13px; }
 .destino-mesa:hover, .destino-mesa:focus-visible { border-color: var(--dourado); background: var(--dourado-claro); }
 .destino-mesa b { font-family: var(--serif); font-size: 18px; }
 .destino-mesa small { grid-column: 1 / -1; color: var(--suave); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- Tela "Mesas em lista" ---------- */
+.lista-mesas { background: var(--marfim); overflow: hidden; }
+.lv-barra {
+  display: grid; grid-template-columns: minmax(320px, 1.3fr) minmax(260px, 1fr); gap: 14px 22px;
+  padding: 14px 16px; background: var(--branco); border-bottom: 1px solid var(--linha);
+}
+.lv-add, .lv-lote { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.lv-rotulo { font-size: 14px; color: var(--tinta-2); }
+.lv-campo { position: relative; }
+.lv-campo > svg { position: absolute; left: 11px; top: 11px; width: 17px; height: 17px; color: var(--suave); }
+.lv-campo .entrada { padding-left: 36px; min-height: 40px; font-size: 15px; }
+.lv-opcoes { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--tinta-2); }
+.lv-opcoes label { display: inline-flex; align-items: center; gap: 6px; }
+.lv-opcoes .selecao { width: auto; min-height: 30px; padding: 2px 8px; font-size: 13px; }
+.lv-ultimo { font-size: 13px; color: var(--salvia-escura); }
+.lv-grade {
+  flex: 1; overflow-y: auto; padding: 14px 16px 80px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); grid-auto-rows: max-content; gap: 12px; align-content: start;
+}
+.lv-mesa { background: var(--branco); border: 1px solid var(--linha); border-radius: 10px; overflow: hidden; }
+.lv-mesa.atual { border-color: var(--dourado); box-shadow: 0 0 0 2px rgba(168, 138, 74, .35); }
+.lv-mesa header { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: var(--marfim); border-bottom: 1px solid var(--linha); }
+.lv-mesa.completa header { background: var(--salvia-clara); }
+.lv-titulo { border: 0; background: none; padding: 0; cursor: pointer; font-family: var(--serif); font-size: 20px; font-weight: 700; color: var(--tinta); }
+.lv-titulo:hover { color: var(--dourado); }
+.lv-mesa ol { list-style: none; margin: 0; padding: 4px 0; }
+.lv-lugar { display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 6px; padding: 2px 8px 2px 10px; min-height: 28px; font-size: 13.5px; }
+.lv-lugar .n { font-family: var(--serif); font-weight: 700; color: var(--suave); text-align: right; }
+.lv-lugar .quem { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--suave); font-style: italic; }
+.lv-lugar.ocupado { cursor: grab; }
+.lv-lugar.ocupado .quem { color: var(--tinta); font-style: normal; }
+.lv-lugar.sobre { background: var(--dourado-claro); outline: 1.5px dashed var(--dourado); outline-offset: -2px; }
+.lv-lugar.destaque { background: var(--dourado-claro); }
+.lv-lugar.arrastando { opacity: .35; }
+.lv-lugar .btn { opacity: 0; }
+.lv-lugar:hover .btn, .lv-lugar .btn:focus-visible { opacity: 1; }
+.lista-mesas .dica { position: static; margin: 10px 16px 0; max-width: none; box-shadow: none; }
+@media (max-width: 820px) {
+  .lv-barra { grid-template-columns: 1fr; }
+  .lv-lugar .btn { opacity: 1; }
+}

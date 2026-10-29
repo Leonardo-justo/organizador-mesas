@@ -249,6 +249,58 @@ test('mover mesas livremente e alargar a lista', async ({ page }) => {
   expect((await page.locator('.lateral').boundingBox())!.width).toBeGreaterThan(lista.width + 100);
 });
 
+test('tela Mesas em lista: adicionar em sequência sem usar o mapa', async ({ page }) => {
+  await start(page);
+  await importSample(page);
+  await page.getByTestId('modo-lista').click();
+  await expect(page.getByTestId('tela-lista')).toBeVisible();
+  await expect(page.locator('section[data-testid^=lv-mesa-]')).toHaveCount(28);
+  const busca = page.getByTestId('lv-busca');
+  // convidado existente
+  await busca.fill('aline alm');
+  await busca.press('Enter');
+  await expect(page.getByTestId('lv-1-1')).toContainText('Aline Almeida');
+  // novo convidado digitado na hora
+  await busca.fill('Tia Zuleica');
+  await busca.press('Enter');
+  await expect(page.getByTestId('lv-1-2')).toContainText('Tia Zuleica');
+  await expect(page.getByTestId('ind-total')).toHaveText('60');
+  // escolher outra mesa para começar
+  await page.getByTestId('lv-mesa-alvo').selectOption('5');
+  await busca.fill('André Nasc');
+  await busca.press('Enter');
+  await expect(page.getByTestId('lv-5-1')).toContainText('André Nascimento');
+  // colocar todos os confirmados em sequência a partir da mesa 5
+  await page.getByTestId('lv-colocar-todos').click();
+  await page.getByTestId('confirmar').click();
+  await expect(page.getByTestId('lv-mesa-5')).toContainText('10/10');
+  await expect(page.getByTestId('ind-sem-lugar')).toHaveText('24');
+  // arrastar entre cartões continua funcionando
+  await drag(page, page.getByTestId('lv-1-1'), page.getByTestId('lv-2-4'));
+  await expect(page.getByTestId('lv-2-4')).toContainText('Aline Almeida');
+  // tirar todos das mesas
+  await page.getByTestId('lv-tirar-todos').click();
+  await page.getByTestId('confirmar').click();
+  await expect(page.getByTestId('ind-distribuidos')).toHaveText('0');
+  await expect(page.getByTestId('ind-total')).toHaveText('60');
+  await page.screenshot({ path: 'test-results/tela-lista.png' });
+  await page.locator('.topo').getByRole('button', { name: 'Desfazer', exact: true }).click();
+  await expect(page.getByTestId('ind-distribuidos')).toHaveText('36');
+});
+
+test('importar já colocando os confirmados nas mesas', async ({ page }) => {
+  await start(page);
+  await page.locator('.lateral').getByRole('button', { name: 'Importar', exact: true }).click();
+  await page.setInputFiles('[data-testid=arquivo-importacao]', SAMPLE);
+  await page.getByTestId('importar-em-sequencia').check();
+  await page.getByTestId('confirmar-importacao').click();
+  await expect(page.getByTestId('resultado-importacao')).toContainText('35 confirmado(s) colocados nas mesas');
+  await page.getByRole('button', { name: 'Concluir' }).click();
+  await expect(page.getByTestId('ind-distribuidos')).toHaveText('35');
+  await expect(page.getByTestId('mesa-3')).toHaveAttribute('aria-label', /10 de 10/);
+  await expect(page.getByTestId('mesa-4')).toHaveAttribute('aria-label', /5 de 10/);
+});
+
 test('busca localiza convidado; dados e calibração persistem após recarregar', async ({ page }) => {
   await start(page);
   await importSample(page);
