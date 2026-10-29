@@ -1,0 +1,42 @@
+{
+  "name": "organizador-mesas-casamento",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "vite --open",
+    "build": "tsc --noEmit && vite build",
+    "build:arquivo": "tsc --noEmit && vite build --mode single",
+    "preview": "vite preview --open",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit",
+    "build:site": "npm run build:arquivo && node scripts/montar-site.mjs"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@fontsource/cormorant-garamond": "^5.1.0",
+    "@fontsource/jost": "^5.1.0",
+    "@react-three/drei": "^9.114.0",
+    "@react-three/fiber": "^8.17.10",
+    "lucide-react": "^0.453.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "^0.169.0",
+    "xlsx": "^0.18.5",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/three": "^0.169.0",
+    "@vitejs/plugin-react": "^4.3.3",
+    "fake-indexeddb": "^6.0.0",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "vite-plugin-singlefile": "^2.0.3",
+    "vitest": "^2.1.4"
+  },
+  "private": true,
+  "type": "module"
+}

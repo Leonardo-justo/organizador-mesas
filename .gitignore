@@ -1,0 +1,7 @@
+node_modules
+dist
+dist-arquivo
+site
+test-results
+playwright-report
+backup-lista-casamento.json
