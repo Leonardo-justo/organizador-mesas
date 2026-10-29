@@ -70,3 +70,12 @@ describe('exportação', () => {
     expect(toCsv([['a;b', 'c"d']])).toBe('﻿"a;b";"c""d"\r\n');
   });
 });
+
+describe('ordem da planilha', () => {
+  it('importação guarda a ordem das linhas', () => {
+    const rows = parseCsv('Nome\nZélia\nAna\nMárcio\n');
+    const p = buildPreview(rows, detectMapping(rows, true), true, []);
+    const sorted = [...p.rows].map((r) => r.guest).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    expect(sorted.map((g) => g.fullName)).toEqual(['Zélia', 'Ana', 'Márcio']);
+  });
+});

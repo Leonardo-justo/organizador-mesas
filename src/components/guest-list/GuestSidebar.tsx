@@ -10,7 +10,7 @@ import { Tip } from '../common/Tip';
 import { DROP_UNASSIGN, dragGuestId } from '../dnd';
 
 type SeatFilter = 'todos' | 'sem-lugar' | 'distribuidos';
-type Sort = 'az' | 'za' | 'mesa';
+type Sort = 'planilha' | 'az' | 'za' | 'mesa';
 
 export function RsvpBadge({ rsvp }: { rsvp: Rsvp }) {
   const Icon = rsvp === 'confirmado' ? Check : rsvp === 'recusado' ? UserX : Clock;
@@ -146,7 +146,7 @@ export function GuestSidebar() {
   const [rsvp, setRsvp] = useState<'todas' | Rsvp>('todas');
   const [seatF, setSeatF] = useState<SeatFilter>('todos');
   const [group, setGroup] = useState('');
-  const [sort, setSort] = useState<Sort>('az');
+  const [sort, setSort] = useState<Sort>('planilha');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [batchTable, setBatchTable] = useState('');
 
@@ -168,6 +168,8 @@ export function GuestSidebar() {
       return true;
     });
     arr.sort((a, b) => {
+      // ordem da planilha: ordem de cadastro/importação (empates mantêm a ordem original)
+      if (sort === 'planilha') return a.createdAt.localeCompare(b.createdAt);
       if (sort === 'za') return compareNames(b.fullName, a.fullName);
       if (sort === 'mesa') {
         const sa = idx.get(a.id), sb = idx.get(b.id);
@@ -233,6 +235,7 @@ export function GuestSidebar() {
               {groups.map((g) => <option key={g} value={g}>{g}</option>)}
             </select>
             <select className="selecao" aria-label="Ordenar" value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
+              <option value="planilha">Ordem da lista</option>
               <option value="az">Nome (A–Z)</option>
               <option value="za">Nome (Z–A)</option>
               <option value="mesa">Por mesa e lugar</option>

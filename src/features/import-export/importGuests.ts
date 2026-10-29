@@ -106,6 +106,8 @@ export function buildPreview(rows: string[][], mapping: ColumnMapping, hasHeader
   const start = hasHeader ? 1 : 0;
   const get = (r: string[], k: FieldKey) => (mapping[k] >= 0 ? cleanText(r[mapping[k]] ?? '') : '');
   const seenInFile: Guest[] = [];
+  // carimbo crescente por linha: preserva a ordem da planilha ao ordenar "Ordem da lista"
+  const base = Date.now();
   for (let i = start; i < rows.length; i++) {
     const r = rows[i];
     const line = i + 1;
@@ -120,6 +122,7 @@ export function buildPreview(rows: string[][], mapping: ColumnMapping, hasHeader
       companion: get(r, 'companion'),
       notes: get(r, 'notes'),
       rsvp: parseRsvp(get(r, 'rsvp')),
+      createdAt: new Date(base + i).toISOString(),
     });
     const issues: string[] = [];
     const dupExisting = existing.find((g) => areNamesSimilar(g.fullName, fullName));
