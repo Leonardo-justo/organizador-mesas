@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { defaultTables } from '../data/floorplan';
 import { emptyHistory, record, redo as hRedo, undo as hUndo, type History } from '../domain/history';
-import { SPACING_ON, sanitizeTables } from '../domain/layout';
+import { SPACING_ON, isLegacyLayout, newTable, sanitizeTables, upgradeLayout } from '../domain/layout';
 import * as S from '../domain/seating';
 import type { Guest, Layout, SeatRef, SeatingState, TableDef, ViewPrefs } from '../domain/types';
 import type { AppSnapshot } from '../features/backup/backup';
@@ -50,6 +50,8 @@ export interface AppState {
   pendingReplace: PendingReplace | null;
   /** Convidado solto em mesa lotada: usuário escolhe quem sai. */
   pendingFull: { guestId: string; table: number } | null;
+  /** Dados no formato antigo (28 mesas de 10) aguardando a escolha de conversão. */
+  pendingUpgrade: boolean;
   toasts: Toast[];
 
   saveStatus: SaveStatus;
@@ -85,6 +87,10 @@ export interface AppState {
   moveDraftTable: (n: number, x: number, y: number) => void;
   rotateDraftSeats: (n: number, delta: number) => void;
   resetDraftToOriginal: () => void;
+  addDraftTable: (shape: TableDef['shape']) => void;
+  removeDraftTable: (n: number) => void;
+  setDraftSeats: (n: number, seats: number) => void;
+  applyUpgrade: (mode: 'manter' | 'redistribuir' | 'depois') => void;
   finishCalibration: (save: boolean) => void;
   setCustomPlan: (dataUrl: string | undefined) => void;
 
@@ -113,6 +119,7 @@ export const useApp = create<AppState>((set, get) => ({
   focusRequest: 0,
   pendingReplace: null,
   pendingFull: null,
+  pendingUpgrade: false,
   toasts: [],
 
   saveStatus: 'carregando',
@@ -120,18 +127,41 @@ export const useApp = create<AppState>((set, get) => ({
   saveError: null,
 
   hydrate: (snap, savedAt) => {
+    const rawTables = snap?.layout?.tables;
+    const legacy = isLegacyLayout(rawTables);
+    const tables = sanitizeTables(rawTables);
+    S.setTableSpec(tables);
     const seating = snap?.seating ?? { guests: {}, assignments: {} };
     const valid = S.validateState(seating).length === 0;
     set({
       loaded: true,
       seating: valid ? seating : { guests: seating.guests ?? {}, assignments: {} },
-      layout: { tables: sanitizeTables(snap?.layout?.tables), customPlan: snap?.layout?.customPlan },
+      layout: { tables, customPlan: snap?.layout?.customPlan },
       prefs: { ...defaultPrefs(), ...(snap?.prefs ?? {}) },
       history: emptyHistory(),
-      saveStatus: savedAt ? 'salvo' : 'salvo',
+      saveStatus: 'salvo',
       lastSavedAt: savedAt ?? null,
+      pendingUpgrade: legacy,
     });
     if (!valid) get().toast('erro', 'Os dados salvos tinham inconsistências na distribuição; os cadastros foram mantidos e os lugares foram liberados.');
+  },
+
+  applyUpgrade: (mode) => {
+    if (mode === 'depois') { set({ pendingUpgrade: false }); return; }
+    const st = get();
+    const tables = upgradeLayout(st.layout.tables);
+    const r = S.adaptSeatingToTables(st.seating, tables, mode);
+    S.setTableSpec(tables);
+    set((x) => ({
+      layout: { ...x.layout, tables },
+      seating: r.state,
+      history: emptyHistory(), // o histórico antigo usava outros lugares
+      pendingUpgrade: false,
+      selectedTable: null,
+    }));
+    get().toast('ok', mode === 'manter'
+      ? `Salão atualizado: ${tables.length} mesas de 8. ${r.kept} convidados ficaram no mesmo lugar; ${r.unseated} voltaram para a lista.`
+      : `Salão atualizado: ${tables.length} mesas de 8. ${r.moved} convidados redistribuídos na ordem${r.unseated ? `; ${r.unseated} ficaram sem lugar` : ''}.`);
   },
 
   snapshot: () => {
@@ -141,6 +171,7 @@ export const useApp = create<AppState>((set, get) => ({
 
   replaceAll: (snap, label) => {
     const prev = get().seating;
+    S.setTableSpec(snap.layout.tables);
     set((st) => ({
       seating: snap.seating,
       layout: snap.layout,
@@ -226,6 +257,7 @@ export const useApp = create<AppState>((set, get) => ({
     const st = get();
     const r = hUndo(st.history, st.seating);
     if (!r) { st.toast('info', 'Nada para desfazer.'); return; }
+    if (S.validateState(r.state).length) { st.toast('erro', 'Não dá para desfazer: as mesas mudaram desde essa alteração.'); return; }
     set({ history: r.history, seating: r.state, pendingReplace: null });
     st.toast('info', `Desfeito: ${r.label}`);
   },
@@ -233,6 +265,7 @@ export const useApp = create<AppState>((set, get) => ({
     const st = get();
     const r = hRedo(st.history, st.seating);
     if (!r) { st.toast('info', 'Nada para refazer.'); return; }
+    if (S.validateState(r.state).length) { st.toast('erro', 'Não dá para refazer: as mesas mudaram desde essa alteração.'); return; }
     set({ history: r.history, seating: r.state });
     st.toast('info', `Refeito: ${r.label}`);
   },
@@ -263,11 +296,36 @@ export const useApp = create<AppState>((set, get) => ({
       calibrationDraft: st.calibrationDraft?.map((t) => (t.number === n ? { ...t, seatRotation: (((t.seatRotation + delta) % 360) + 360) % 360 } : t)) ?? null,
     })),
   resetDraftToOriginal: () => set({ calibrationDraft: defaultTables() }),
+  addDraftTable: (shape) => {
+    const draft = get().calibrationDraft;
+    if (!draft) return;
+    const t = newTable(draft, shape);
+    set({ calibrationDraft: [...draft, t], selectedTable: t.number });
+    get().toast('info', `Mesa ${t.number} adicionada no canto superior esquerdo. Arraste para o lugar certo.`);
+  },
+  removeDraftTable: (n) =>
+    set((st) => ({ calibrationDraft: st.calibrationDraft?.filter((t) => t.number !== n) ?? null, selectedTable: null })),
+  setDraftSeats: (n, seats) =>
+    set((st) => ({
+      calibrationDraft: st.calibrationDraft?.map((t) => (t.number === n ? { ...t, seats: Math.min(16, Math.max(1, Math.round(seats))) } : t)) ?? null,
+    })),
   finishCalibration: (save) => {
     const draft = get().calibrationDraft;
     if (save && draft) {
-      set((st) => ({ layout: { ...st.layout, tables: sanitizeTables(draft) }, calibrating: false, calibrationDraft: null }));
-      get().toast('ok', 'Posições das mesas salvas.');
+      const tables = sanitizeTables(draft);
+      const st = get();
+      const r = S.adaptSeatingToTables(st.seating, tables, 'manter');
+      S.setTableSpec(tables);
+      set((x) => ({
+        layout: { ...x.layout, tables },
+        calibrating: false,
+        calibrationDraft: null,
+        ...(r.unseated ? { seating: r.state, history: record(x.history, x.seating, 'Mudança nas mesas') } : {}),
+        selectedTable: x.selectedTable != null && tables.some((t) => t.number === x.selectedTable) ? x.selectedTable : null,
+      }));
+      get().toast('ok', r.unseated
+        ? `Mesas salvas. ${r.unseated} convidado(s) de lugares removidos voltaram para a lista.`
+        : 'Mesas salvas.');
     } else {
       set({ calibrating: false, calibrationDraft: null });
     }

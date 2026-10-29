@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import {
   HALL_OUTLINE, PLAN_ELEMENTS, PLAN_WALLS, PX_PER_METER, RECT_TABLE_H, RECT_TABLE_W,
-  ROUND_TABLE_RADIUS, SEAT_RING_RADIUS, SEATS_PER_TABLE,
+  ROUND_TABLE_RADIUS, SEAT_RING_RADIUS,
 } from '../../data/floorplan';
 import { label } from '../../domain/guests';
 import { seatOffsets } from '../../domain/layout';
@@ -99,8 +99,8 @@ function Table3D({ t, W, H }: { t: TableDef; W: number; H: number }) {
   const selectTable = useApp((s) => s.selectTable);
   const [hover, setHover] = useState(false);
   const [x, z] = toWorld(t.x * W, t.y * H);
-  const seats = seatOffsets(t.shape, t.seatRotation, SEAT_RING_RADIUS, RECT_TABLE_W, RECT_TABLE_H);
-  const ids = Array.from({ length: SEATS_PER_TABLE }, (_, i) => assignments[seatKey(t.number, i + 1)]);
+  const seats = seatOffsets(t.shape, t.seatRotation, SEAT_RING_RADIUS, RECT_TABLE_W, RECT_TABLE_H, t.seats);
+  const ids = Array.from({ length: t.seats }, (_, i) => assignments[seatKey(t.number, i + 1)]);
   const n = ids.filter(Boolean).length;
 
   const onClick = (e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); selectTable(selected ? null : t.number); };
@@ -162,16 +162,16 @@ function Table3D({ t, W, H }: { t: TableDef; W: number; H: number }) {
       <Html position={[0, 1.15, 0]} center distanceFactor={20} zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
         <div style={{
           fontFamily: 'Cormorant Garamond, serif', fontWeight: 700, fontSize: 22, lineHeight: 1, textAlign: 'center',
-          color: n === SEATS_PER_TABLE ? '#fff' : '#2b2b26', background: n === SEATS_PER_TABLE ? '#4e6550' : 'rgba(255,255,255,.85)',
+          color: n >= t.seats ? '#fff' : '#2b2b26', background: n >= t.seats ? '#4e6550' : 'rgba(255,255,255,.85)',
           borderRadius: 999, padding: '3px 9px', border: selected ? '2px solid #a88a4a' : '1px solid #ddd4c1', whiteSpace: 'nowrap',
         }}>
-          {t.number}<span style={{ fontFamily: 'Jost, sans-serif', fontSize: 12, fontWeight: 500, marginLeft: 5 }}>{n}/10</span>
+          {t.number}<span style={{ fontFamily: 'Jost, sans-serif', fontSize: 12, fontWeight: 500, marginLeft: 5 }}>{n}/{t.seats}</span>
         </div>
       </Html>
       {(selected || hover) && (
         <Html position={[0, 2.1, 0]} center distanceFactor={16} zIndexRange={[30, 20]}>
           <div className="rotulo3d">
-            <strong>Mesa {t.number}</strong> — {n} de 10
+            <strong>Mesa {t.number}</strong> — {n} de {t.seats}
             <ol>
               {ids.map((id, i) => <li key={i} style={{ color: id ? undefined : '#999' }}>{id && guests[id] ? label(guests[id]) : 'livre'}</li>)}
             </ol>

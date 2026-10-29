@@ -14,8 +14,10 @@ export function StatsBar() {
   const seating = useApp((s) => s.seating);
   const filter = useApp((s) => s.tableFilter);
   const setFilter = useApp((s) => s.setTableFilter);
-  const st = useMemo(() => computeStats(seating), [seating]);
-  const count: Record<TableFilter, number> = { todas: 28, vazia: st.emptyTables, parcial: st.partialTables, completa: st.fullTables };
+  const tables = useApp((s) => s.layout.tables);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const st = useMemo(() => computeStats(seating), [seating, tables]);
+  const count: Record<TableFilter, number> = { todas: st.tables, vazia: st.emptyTables, parcial: st.partialTables, completa: st.fullTables };
   return (
     <div className="indicadores" data-testid="indicadores">
       <div className="grupo-ind" aria-label="Convidados">
@@ -27,7 +29,7 @@ export function StatsBar() {
       <span className="sep some-celular" aria-hidden />
       <div className="grupo-ind" aria-label="Lugares">
         <span className="ind"><b>{st.occupiedSeats}</b> lugares ocupados</span>
-        <span className="ind"><b data-testid="ind-livres">{st.freeSeats}</b> livres de 280</span>
+        <span className="ind"><b data-testid="ind-livres">{st.freeSeats}</b> livres de {st.capacity}</span>
       </div>
       <div className="filtros-mesa" role="group" aria-label="Filtrar mesas no mapa">
         {FILTERS.map((f) => (

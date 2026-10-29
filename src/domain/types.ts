@@ -23,6 +23,8 @@ export interface TableDef {
   y: number;
   /** Rotação (graus) da numeração das cadeiras. Não altera a posição da mesa. */
   seatRotation: number;
+  /** Quantidade de lugares desta mesa. */
+  seats: number;
 }
 
 /** Identificador de assento: "<mesa>-<lugar>", ex.: "12-3". */

@@ -1,12 +1,11 @@
 /**
- * Tela "Lista": as 28 mesas como cartões, sem mapa 2D/3D.
+ * Tela "Lista": as mesas como cartões, sem mapa 2D/3D.
  * Você vai adicionando nomes e eles entram no próximo lugar livre,
  * passando para a mesa seguinte quando a atual lota.
  */
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { ListPlus, Undo, UserPlus, Users, UserX } from 'lucide-react';
 import { memo, useMemo, useRef, useState } from 'react';
-import { SEATS_PER_TABLE } from '../../data/floorplan';
 import { compareNames, createGuest, findSimilar, label, matchesQuery, normalizeName } from '../../domain/guests';
 import * as S from '../../domain/seating';
 import type { Guest, Rsvp } from '../../domain/types';
@@ -57,17 +56,18 @@ function TableCard({ table, current, onPick }: { table: number; current: boolean
   const highlight = useApp((s) => s.highlightGuestId);
   const unassign = useApp((s) => s.unassignGuest);
   const n = S.tableOccupancy(assignments, table);
-  const status = n === 0 ? 'vazia' : n === SEATS_PER_TABLE ? 'completa' : 'parcial';
+  const cap = S.seatsOf(table);
+  const status = n === 0 ? 'vazia' : n >= cap ? 'completa' : 'parcial';
   return (
-    <section className={`lv-mesa ${status}${current ? ' atual' : ''}`} aria-label={`Mesa ${table}, ${n} de 10`} data-testid={`lv-mesa-${table}`}>
+    <section className={`lv-mesa ${status}${current ? ' atual' : ''}`} aria-label={`Mesa ${table}, ${n} de ${cap}`} data-testid={`lv-mesa-${table}`}>
       <header>
         <button className="lv-titulo" onClick={() => onPick(table)} title="Começar a adicionar por esta mesa" aria-pressed={current}>
           Mesa {table}
         </button>
-        <span className={`selo ${status}`}>{status === 'completa' ? '✓ 10/10' : `${n}/10`}</span>
+        <span className={`selo ${status}`}>{status === 'completa' ? `✓ ${cap}/${cap}` : `${n}/${cap}`}</span>
       </header>
       <ol>
-        {S.seatNumbers().map((s) => {
+        {S.seatNumbers(table).map((s) => {
           const id = assignments[S.seatKey(table, s)];
           return <SeatRow key={s} table={table} seat={s} guest={id ? guests[id] : undefined} highlighted={!!id && id === highlight} onRemove={unassign} />;
         })}
@@ -107,7 +107,7 @@ export function ListView() {
 
   const placeId = (guestId: string, state = useApp.getState().seating) => {
     const ref = S.nextFreeSeat(state.assignments, target);
-    if (!ref) { toast('erro', 'Todos os 280 lugares estão ocupados.'); return false; }
+    if (!ref) { toast('erro', `Todos os ${S.totalCapacity()} lugares estão ocupados.`); return false; }
     const r = S.placeGuest(state, guestId, ref);
     return { r, ref };
   };
@@ -208,7 +208,7 @@ export function ListView() {
               Começar pela
               <select className="selecao" value={target} onChange={(e) => setTarget(Number(e.target.value))} aria-label="Mesa onde começar" data-testid="lv-mesa-alvo">
                 {S.tableNumbers().map((t) => (
-                  <option key={t} value={t}>Mesa {t} ({SEATS_PER_TABLE - S.tableOccupancy(seating.assignments, t)} livres)</option>
+                  <option key={t} value={t}>Mesa {t} ({S.seatsOf(t) - S.tableOccupancy(seating.assignments, t)} livres)</option>
                 ))}
               </select>
             </label>

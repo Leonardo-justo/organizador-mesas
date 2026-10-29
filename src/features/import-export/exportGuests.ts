@@ -17,7 +17,7 @@ export function exportRows(state: SeatingState, kind: ExportKind): string[][] {
   if (kind === 'por-mesa') {
     const rows: string[][] = [['Mesa', 'Assento', 'Convidado', 'Família/Grupo', 'Acompanhante', 'Presença', 'Observações']];
     for (const t of tableNumbers()) {
-      for (const s of seatNumbers()) {
+      for (const s of seatNumbers(t)) {
         const g = state.guests[state.assignments[seatKey(t, s)] ?? ''];
         rows.push([String(t), String(s), g ? g.fullName : '(livre)', g?.group ?? '', g?.companion ?? '', g ? RSVP_LABEL[g.rsvp] : '', g?.notes ?? '']);
       }

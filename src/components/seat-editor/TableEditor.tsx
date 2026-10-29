@@ -1,7 +1,6 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { ArrowLeftRight, Shuffle, Pencil, Printer, UserPlus, Users, Undo, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { SEATS_PER_TABLE } from '../../data/floorplan';
 import { label } from '../../domain/guests';
 import { seatOffsets } from '../../domain/layout';
 import * as S from '../../domain/seating';
@@ -79,8 +78,8 @@ export function TableEditor() {
   const status = S.tableStatus(seating.assignments, tableNo);
   const isRect = t.shape === 'rect';
   const pos = isRect
-    ? seatOffsets('rect', t.seatRotation, 0, 80, 34).map((o) => ({ seat: o.seat, left: 50 + o.dx, top: 50 + o.dy * 1.25 }))
-    : seatOffsets('round', t.seatRotation, 39, 0, 0).map((o) => ({ seat: o.seat, left: 50 + o.dx, top: 50 + o.dy }));
+    ? seatOffsets('rect', t.seatRotation, 0, 80, 34, t.seats).map((o) => ({ seat: o.seat, left: 50 + o.dx, top: 50 + o.dy * 1.25 }))
+    : seatOffsets('round', t.seatRotation, 39, 0, 0, t.seats).map((o) => ({ seat: o.seat, left: 50 + o.dx, top: 50 + o.dy }));
   const pickedGuest = picked ? seating.guests[picked] : undefined;
   const activeGuest = activeSeat ? guestAt(activeSeat) : undefined;
 
@@ -97,7 +96,7 @@ export function TableEditor() {
           <div className="status">
             <span className={`selo ${status}`}>{status === 'completa' ? 'Completa' : status === 'parcial' ? 'Parcialmente ocupada' : 'Vazia'}</span>
             <span data-testid="ocupados"><b>{n}</b> ocupados</span>
-            <span><b>{SEATS_PER_TABLE - n}</b> livres</span>
+            <span><b>{t.seats - n}</b> livres</span>
           </div>
         </div>
         <div className="fim">
@@ -120,7 +119,7 @@ export function TableEditor() {
             Movendo <strong>{label(pickedGuest)}</strong>: toque em um lugar.
             <div style={{ marginTop: 6 }}>
               <button className="btn pequeno dourado" onClick={() => dropOnTable(pickedGuest.id, tableNo)}>
-                {n < SEATS_PER_TABLE ? 'Colocar no primeiro lugar livre' : 'Mesa lotada: escolher quem sai'}
+                {n < t.seats ? 'Colocar no primeiro lugar livre' : 'Mesa lotada: escolher quem sai'}
               </button>
             </div>
           </div>
@@ -172,7 +171,7 @@ export function TableEditor() {
         )}
 
         <ol className="lugares" aria-label="Lugares da mesa">
-          {S.seatNumbers().map((seat) => {
+          {S.seatNumbers(tableNo).map((seat) => {
             const g = guestAt(seat);
             return (
               <li key={seat} className={`${g ? '' : 'livre'}${g && g.id === highlight ? ' destaque' : ''}`}>
@@ -195,7 +194,7 @@ export function TableEditor() {
           })}
         </ol>
         <p className="nota">
-          Numeração: {isRect ? 'lugares 1–4 no lado de cima, 5 na cabeceira direita, 6–9 embaixo e 10 na cabeceira esquerda' : 'lugar 1 no topo, seguindo no sentido horário'}
+          Mesa de {t.seats} lugares. Numeração: {isRect ? 'começa no lado de cima (esquerda → direita), segue pela cabeceira direita, volta por baixo e termina na cabeceira esquerda' : 'lugar 1 no topo, seguindo no sentido horário'}
           {t.seatRotation ? ` (girada ${t.seatRotation}°)` : ''}. Para girar, use “Mover mesas”. Solte um convidado sobre um lugar ocupado para trocar.
         </p>
       </div>

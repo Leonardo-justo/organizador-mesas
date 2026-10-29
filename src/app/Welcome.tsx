@@ -14,7 +14,7 @@ export function Welcome() {
   return (
     <Modal
       title="Bem-vindos ao organizador de mesas"
-      subtitle="A planta do salão já está carregada com as 28 mesas de 10 lugares."
+      subtitle="A planta do salão já está carregada com as mesas. Em “Mover mesas” você muda posições, adiciona ou remove mesas."
       onClose={() => go()}
       footer={
         <>

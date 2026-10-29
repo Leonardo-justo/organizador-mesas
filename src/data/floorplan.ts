@@ -13,9 +13,12 @@ export const PLAN_WIDTH = 1013;
 export const PLAN_HEIGHT = 631;
 export const PLAN_ASPECT = PLAN_WIDTH / PLAN_HEIGHT;
 
-export const TABLE_COUNT = 28;
-export const SEATS_PER_TABLE = 10;
-export const TOTAL_CAPACITY = TABLE_COUNT * SEATS_PER_TABLE;
+/** Lugares por mesa no layout padrão (cada mesa pode ter outro valor). */
+export const DEFAULT_SEATS = 8;
+/** Lugares por mesa no formato antigo (28 mesas de 10), usado para reconhecer dados antigos. */
+export const LEGACY_SEATS = 10;
+export const MAX_SEATS_PER_TABLE = 16;
+export const MAX_TABLES = 80;
 
 const RAW: Array<[number, number, number, 'round' | 'rect']> = [
   [1, 702.0, 231.4, 'round'],
@@ -46,7 +49,19 @@ const RAW: Array<[number, number, number, 'round' | 'rect']> = [
   [26, 250.8, 415.4, 'round'],
   [27, 193.3, 415.5, 'round'],
   [28, 132.5, 411.2, 'round'],
+  // Mesas novas (layout de 35 mesas): posições iniciais em áreas livres da planta,
+  // para serem ajustadas em "Mover mesas".
+  [29, 330.0, 580.0, 'rect'],
+  [30, 92.0, 580.0, 'round'],
+  [31, 152.0, 580.0, 'round'],
+  [32, 212.0, 580.0, 'round'],
+  [33, 270.0, 580.0, 'round'],
+  [34, 782.0, 470.0, 'round'],
+  [35, 782.0, 535.0, 'round'],
 ];
+
+/** Mesas que existem na imagem original da planta (1–28). */
+export const ORIGINAL_TABLE_COUNT = 28;
 
 const round4 = (n: number) => Math.round(n * 10000) / 10000;
 
@@ -57,6 +72,7 @@ export function defaultTables(): TableDef[] {
     x: round4(px / PLAN_WIDTH),
     y: round4(py / PLAN_HEIGHT),
     seatRotation: 0,
+    seats: DEFAULT_SEATS,
   }));
 }
 

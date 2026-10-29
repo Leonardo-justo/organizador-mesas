@@ -1,6 +1,6 @@
 import { useDroppable } from '@dnd-kit/core';
 import { memo } from 'react';
-import { RECT_TABLE_H, RECT_TABLE_W, ROUND_TABLE_RADIUS, SEAT_RING_RADIUS, SEATS_PER_TABLE } from '../../data/floorplan';
+import { RECT_TABLE_H, RECT_TABLE_W, ROUND_TABLE_RADIUS, SEAT_RING_RADIUS } from '../../data/floorplan';
 import { label } from '../../domain/guests';
 import { seatOffsets } from '../../domain/layout';
 import { seatKey } from '../../domain/seating';
@@ -20,7 +20,7 @@ export interface MarkerProps {
   calibrating: boolean;
   dropDisabled: boolean;
   showInitials?: boolean;
-  /** Quando definido, a mesa é desenhada como cartão com os nomes dos 10 lugares (zoom alto). */
+  /** Quando definido, a mesa é desenhada como cartão com os nomes dos lugares (zoom alto). */
   card?: { w: number; h: number };
   onSelect?: (n: number) => void;
   onCalibratePointerDown?: (n: number, e: React.PointerEvent) => void;
@@ -57,14 +57,14 @@ export function TableMarkerView(p: MarkerProps) {
   const { table: t, W, H, assignments, guests } = p;
   const cx = t.x * W;
   const cy = t.y * H;
-  const occupied = Array.from({ length: SEATS_PER_TABLE }, (_, i) => assignments[seatKey(t.number, i + 1)]);
+  const occupied = Array.from({ length: t.seats }, (_, i) => assignments[seatKey(t.number, i + 1)]);
   const n = occupied.filter(Boolean).length;
-  const full = n === SEATS_PER_TABLE;
+  const full = n >= t.seats;
   const status = n === 0 ? 'vazia' : full ? 'completa' : 'parcial';
   const fill = full ? '#4e6550' : n ? '#dfe8dc' : '#ffffff';
   const stroke = full ? '#4e6550' : n ? '#6f8a6b' : '#9a9483';
   const textColor = full ? '#ffffff' : '#2b2b26';
-  const seats = seatOffsets(t.shape, t.seatRotation, SEAT_RING_RADIUS, RECT_TABLE_W, RECT_TABLE_H);
+  const seats = seatOffsets(t.shape, t.seatRotation, SEAT_RING_RADIUS, RECT_TABLE_W, RECT_TABLE_H, t.seats);
   const names = occupied.map((id, i) => `${i + 1}. ${id && guests[id] ? label(guests[id]) : '(livre)'}`).join('\n');
 
   const common = {
@@ -72,7 +72,7 @@ export function TableMarkerView(p: MarkerProps) {
     transform: `translate(${cx} ${cy})`,
     role: 'button',
     tabIndex: 0,
-    'aria-label': `Mesa ${t.number}: ${n} de 10 lugares ocupados (${status})`,
+    'aria-label': `Mesa ${t.number}: ${n} de ${t.seats} lugares ocupados (${status})`,
     'aria-pressed': p.selected,
     'data-testid': `mesa-${t.number}`,
     onClick: () => !p.calibrating && p.onSelect?.(t.number),
@@ -83,18 +83,18 @@ export function TableMarkerView(p: MarkerProps) {
   if (p.card) {
     const { w, h } = p.card;
     const header = h * 0.13;
-    const lh = (h - header - 1.5) / SEATS_PER_TABLE;
+    const lh = (h - header - 1.5) / Math.max(t.seats, 8);
     const fs = lh * 0.86;
     const maxChars = Math.max(6, Math.floor((w - fs * 1.9 - 3) / (fs * 0.5)));
     const cut = (s: string) => (s.length > maxChars ? `${s.slice(0, maxChars - 1)}…` : s);
     const headFill = full ? '#4e6550' : n ? '#dfe8dc' : '#f4efe3';
     return (
       <g {...common}>
-        <title>{`Mesa ${t.number} — ${n}/10\n${names}`}</title>
+        <title>{`Mesa ${t.number} — ${n}/${t.seats}\n${names}`}</title>
         <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={2.5} fill="#fffdf8" stroke={p.selected ? '#a88a4a' : stroke} strokeWidth={p.selected ? 1.6 : 0.6} className="anel" />
         <path d={`M${-w / 2} ${-h / 2 + header} V${-h / 2 + 2.5} Q${-w / 2} ${-h / 2} ${-w / 2 + 2.5} ${-h / 2} H${w / 2 - 2.5} Q${w / 2} ${-h / 2} ${w / 2} ${-h / 2 + 2.5} V${-h / 2 + header} Z`} fill={headFill} />
         <text x={-w / 2 + 2.5} y={-h / 2 + header * 0.78} fontSize={header * 0.85} fontWeight={700} fill={full ? '#fff' : '#2b2b26'}>Mesa {t.number}</text>
-        <text x={w / 2 - 2.5} y={-h / 2 + header * 0.72} fontSize={header * 0.55} textAnchor="end" fill={full ? '#fff' : '#57554c'} style={{ fontFamily: 'Jost, sans-serif' }}>{full ? '✓ 10/10' : `${n}/10`}</text>
+        <text x={w / 2 - 2.5} y={-h / 2 + header * 0.72} fontSize={header * 0.55} textAnchor="end" fill={full ? '#fff' : '#57554c'} style={{ fontFamily: 'Jost, sans-serif' }}>{full ? `✓ ${t.seats}/${t.seats}` : `${n}/${t.seats}`}</text>
         {occupied.map((gid, i) => {
           const g = gid ? guests[gid] : undefined;
           const y = -h / 2 + header + 1 + lh * i;
@@ -115,7 +115,7 @@ export function TableMarkerView(p: MarkerProps) {
 
   return (
     <g {...common}>
-      <title>{`Mesa ${t.number} — ${n}/10\n${names}`}</title>
+      <title>{`Mesa ${t.number} — ${n}/${t.seats}\n${names}`}</title>
       {/* área de clique/soltura generosa */}
       <circle r={SEAT_RING_RADIUS + 7} fill="rgba(255,255,255,0.001)" />
       {p.selected && <circle r={SEAT_RING_RADIUS + 9} fill="none" stroke="#a88a4a" strokeWidth={3} />}
@@ -147,7 +147,7 @@ export function TableMarkerView(p: MarkerProps) {
       )}
       <text y={t.shape === 'round' ? 2 : 1} fontSize={14} fontWeight={700} textAnchor="middle" fill={textColor}>{t.number}</text>
       <text y={t.shape === 'round' ? 11 : 9} fontSize={7} textAnchor="middle" fill={textColor} style={{ fontFamily: 'Jost, sans-serif' }}>
-        {full ? '✓ 10/10' : `${n}/10`}
+        {full ? `✓ ${t.seats}/${t.seats}` : `${n}/${t.seats}`}
       </text>
     </g>
   );

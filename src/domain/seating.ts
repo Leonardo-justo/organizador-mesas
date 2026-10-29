@@ -3,8 +3,35 @@
  * um novo estado válido OU um erro explicando o motivo. Nenhuma operação altera
  * o estado de entrada, então uma falha nunca deixa os dados pela metade.
  */
-import { SEATS_PER_TABLE, TABLE_COUNT, TOTAL_CAPACITY } from '../data/floorplan';
-import type { Assignments, Guest, SeatRef, SeatingState } from './types';
+import { defaultTables } from '../data/floorplan';
+import type { Assignments, Guest, SeatRef, SeatingState, TableDef } from './types';
+
+/**
+ * Configuração atual das mesas (número -> quantidade de lugares).
+ * O estado da aplicação chama setTableSpec sempre que o layout muda; as regras
+ * abaixo usam esta configuração para validar assentos e calcular ocupação.
+ */
+type Spec = { order: number[]; seats: Map<number, number> };
+let SPEC: Spec = buildSpec(defaultTables());
+
+function buildSpec(tables: Array<Pick<TableDef, 'number' | 'seats'>>): Spec {
+  const order = [...tables].map((t) => t.number).sort((a, b) => a - b);
+  return { order, seats: new Map(tables.map((t) => [t.number, t.seats])) };
+}
+
+export function setTableSpec(tables: Array<Pick<TableDef, 'number' | 'seats'>>) {
+  SPEC = buildSpec(tables);
+}
+
+/** Executa fn com outra configuração de mesas (validação de backups). */
+export function withTableSpec<T>(tables: Array<Pick<TableDef, 'number' | 'seats'>>, fn: () => T): T {
+  const prev = SPEC;
+  SPEC = buildSpec(tables);
+  try { return fn(); } finally { SPEC = prev; }
+}
+
+export const seatsOf = (table: number) => SPEC.seats.get(table) ?? 0;
+export const totalCapacity = () => SPEC.order.reduce((a, t) => a + seatsOf(t), 0);
 
 export type OpResult =
   | { ok: true; state: SeatingState; message?: string }
@@ -33,20 +60,20 @@ export function parseSeatKey(key: string): SeatRef | null {
 export function isValidSeat(table: number, seat: number): boolean {
   return (
     Number.isInteger(table) && Number.isInteger(seat) &&
-    table >= 1 && table <= TABLE_COUNT && seat >= 1 && seat <= SEATS_PER_TABLE
+    SPEC.seats.has(table) && seat >= 1 && seat <= seatsOf(table)
   );
 }
 
 export function tableNumbers(): number[] {
-  return Array.from({ length: TABLE_COUNT }, (_, i) => i + 1);
+  return SPEC.order;
 }
 
-export function seatNumbers(): number[] {
-  return Array.from({ length: SEATS_PER_TABLE }, (_, i) => i + 1);
+export function seatNumbers(table: number): number[] {
+  return Array.from({ length: seatsOf(table) }, (_, i) => i + 1);
 }
 
 export function allSeatKeys(): string[] {
-  return tableNumbers().flatMap((t) => seatNumbers().map((s) => seatKey(t, s)));
+  return tableNumbers().flatMap((t) => seatNumbers(t).map((s) => seatKey(t, s)));
 }
 
 /** Índice reverso convidado -> assento. */
@@ -72,12 +99,12 @@ export function occupantOf(state: SeatingState, ref: SeatRef): string | undefine
 
 export function tableOccupancy(assignments: Assignments, table: number): number {
   let n = 0;
-  for (let s = 1; s <= SEATS_PER_TABLE; s++) if (assignments[seatKey(table, s)]) n++;
+  for (let s = 1; s <= seatsOf(table); s++) if (assignments[seatKey(table, s)]) n++;
   return n;
 }
 
 export function freeSeats(assignments: Assignments, table: number): number[] {
-  return seatNumbers().filter((s) => !assignments[seatKey(table, s)]);
+  return seatNumbers(table).filter((s) => !assignments[seatKey(table, s)]);
 }
 
 /**
@@ -97,7 +124,7 @@ export function validateState(state: SeatingState): string[] {
     if (g.id !== id) errors.push(`Identificador inconsistente para ${g.fullName}`);
     if (!g.fullName || !g.fullName.trim()) errors.push(`Convidado ${id} sem nome`);
   }
-  if (Object.keys(state.assignments).length > TOTAL_CAPACITY) errors.push('Capacidade total excedida');
+  if (Object.keys(state.assignments).length > totalCapacity()) errors.push('Capacidade total excedida');
   return errors;
 }
 
@@ -212,7 +239,7 @@ export function placeInTable(state: SeatingState, guestId: string, table: number
   if (current?.table === table) return { ok: false, code: 'same-seat', reason: `Já está na mesa ${table}.` };
   const free = freeSeats(state.assignments, table);
   if (!free.length) {
-    return { ok: false, code: 'table-full', reason: `A mesa ${table} está completa (10 de 10). Abra a mesa para trocar alguém de lugar.` };
+    return { ok: false, code: 'table-full', reason: `A mesa ${table} está completa (${seatsOf(table)} de ${seatsOf(table)}). Abra a mesa para trocar alguém de lugar.` };
   }
   return placeGuest(state, guestId, { table, seat: free[0] });
 }
@@ -277,6 +304,8 @@ export interface Stats {
   unseated: number;
   occupiedSeats: number;
   freeSeats: number;
+  capacity: number;
+  tables: number;
   emptyTables: number;
   partialTables: number;
   fullTables: number;
@@ -289,7 +318,7 @@ export function computeStats(state: SeatingState): Stats {
   for (const t of tableNumbers()) {
     const n = tableOccupancy(state.assignments, t);
     if (n === 0) emptyTables++;
-    else if (n === SEATS_PER_TABLE) fullTables++;
+    else if (n === seatsOf(t)) fullTables++;
     else partialTables++;
   }
   return {
@@ -300,7 +329,9 @@ export function computeStats(state: SeatingState): Stats {
     seated: occupiedSeats,
     unseated: guests.length - occupiedSeats,
     occupiedSeats,
-    freeSeats: TOTAL_CAPACITY - occupiedSeats,
+    freeSeats: totalCapacity() - occupiedSeats,
+    capacity: totalCapacity(),
+    tables: tableNumbers().length,
     emptyTables,
     partialTables,
     fullTables,
@@ -310,7 +341,7 @@ export function computeStats(state: SeatingState): Stats {
 export type TableStatus = 'vazia' | 'parcial' | 'completa';
 export function tableStatus(assignments: Assignments, table: number): TableStatus {
   const n = tableOccupancy(assignments, table);
-  return n === 0 ? 'vazia' : n === SEATS_PER_TABLE ? 'completa' : 'parcial';
+  return n === 0 ? 'vazia' : n >= seatsOf(table) ? 'completa' : 'parcial';
 }
 
 /**
@@ -319,12 +350,19 @@ export function tableStatus(assignments: Assignments, table: number): TableStatu
  */
 export function swapTables(state: SeatingState, a: number, b: number): OpResult {
   if (a === b) return { ok: false, code: 'same-seat', reason: 'Escolha uma mesa diferente.' };
-  if (!isValidSeat(a, 1) || !isValidSeat(b, 1)) return { ok: false, code: 'invalid-seat', reason: 'Mesa inválida.' };
+  if (!SPEC.seats.has(a) || !SPEC.seats.has(b)) return { ok: false, code: 'invalid-seat', reason: 'Mesa inválida.' };
   const na = tableOccupancy(state.assignments, a);
   const nb = tableOccupancy(state.assignments, b);
   if (!na && !nb) return { ok: false, code: 'not-seated', reason: `As mesas ${a} e ${b} estão vazias.` };
+  const sa = seatsOf(a), sb = seatsOf(b);
+  for (let s = sb + 1; s <= sa; s++) if (state.assignments[seatKey(a, s)]) {
+    return { ok: false, code: 'not-enough-seats', reason: `A mesa ${b} tem só ${sb} lugares; há gente no lugar ${s} da mesa ${a}.` };
+  }
+  for (let s = sa + 1; s <= sb; s++) if (state.assignments[seatKey(b, s)]) {
+    return { ok: false, code: 'not-enough-seats', reason: `A mesa ${a} tem só ${sa} lugares; há gente no lugar ${s} da mesa ${b}.` };
+  }
   const assignments: Assignments = { ...state.assignments };
-  for (let s = 1; s <= SEATS_PER_TABLE; s++) {
+  for (let s = 1; s <= Math.max(sa, sb); s++) {
     const ka = seatKey(a, s), kb = seatKey(b, s);
     const ga = state.assignments[ka], gb = state.assignments[kb];
     delete assignments[ka];
@@ -340,8 +378,10 @@ export function swapTables(state: SeatingState, a: number, b: number): OpResult 
 
 /** Próximo lugar livre a partir de uma mesa (segue para as mesas seguintes; volta ao início). */
 export function nextFreeSeat(assignments: Assignments, fromTable: number): SeatRef | null {
-  for (let k = 0; k < TABLE_COUNT; k++) {
-    const t = ((fromTable - 1 + k) % TABLE_COUNT) + 1;
+  const order = tableNumbers();
+  const start = Math.max(0, order.findIndex((t) => t >= fromTable));
+  for (let k = 0; k < order.length; k++) {
+    const t = order[(start + k) % order.length];
     const free = freeSeats(assignments, t);
     if (free.length) return { table: t, seat: free[0] };
   }
@@ -376,4 +416,34 @@ export function unassignAll(state: SeatingState): OpResult {
   const n = Object.keys(state.assignments).length;
   if (!n) return { ok: false, code: 'not-seated', reason: 'Ninguém está sentado.' };
   return commit({ ...state, assignments: {} }, `${n} convidado(s) voltaram para a lista`);
+}
+
+/**
+ * Adapta a distribuição a um novo layout de mesas.
+ *  - 'manter': quem está em lugar que continua existindo fica onde está; o resto volta para a lista.
+ *  - 'redistribuir': todos os sentados são recolocados em sequência (na ordem mesa/lugar
+ *    em que estavam), preenchendo as novas mesas a partir da primeira.
+ * Nenhum cadastro é excluído.
+ */
+export function adaptSeatingToTables(
+  state: SeatingState,
+  newTables: Array<Pick<TableDef, 'number' | 'seats'>>,
+  mode: 'manter' | 'redistribuir',
+): { state: SeatingState; kept: number; moved: number; unseated: number } {
+  const entries = Object.entries(state.assignments)
+    .map(([k, id]) => { const m = /^(\d+)-(\d+)$/.exec(k); return m ? { t: Number(m[1]), s: Number(m[2]), id } : null; })
+    .filter((e): e is { t: number; s: number; id: string } => !!e && !!state.guests[e.id])
+    .sort((a, b) => a.t - b.t || a.s - b.s);
+  return withTableSpec(newTables, () => {
+    if (mode === 'manter') {
+      const assignments: Assignments = {};
+      for (const e of entries) if (isValidSeat(e.t, e.s)) assignments[seatKey(e.t, e.s)] = e.id;
+      const kept = Object.keys(assignments).length;
+      return { state: { ...state, assignments }, kept, moved: 0, unseated: entries.length - kept };
+    }
+    const r = placeSequential({ ...state, assignments: {} }, entries.map((e) => e.id), tableNumbers()[0] ?? 1);
+    if (!r.ok) return { state: { ...state, assignments: {} }, kept: 0, moved: 0, unseated: entries.length };
+    const placed = Object.keys(r.state.assignments).length;
+    return { state: r.state, kept: 0, moved: placed, unseated: entries.length - placed };
+  });
 }

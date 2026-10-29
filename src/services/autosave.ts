@@ -26,6 +26,7 @@ function offerSeed() {
     }, 'Carregar lista do casamento');
     s2.toast('ok', withSeats ? `Lista carregada: ${parsed.summary}.` : `Lista carregada: ${Object.keys(snap.seating.guests).length} convidados, todos sem mesa.`, true);
     try { localStorage.setItem(key, new Date().toISOString()); } catch { /* ignora */ }
+    if (parsed.legacy) useApp.setState({ pendingUpgrade: true });
   };
   confirmAction({
     title: 'Carregar a lista do casamento?',

@@ -1,5 +1,5 @@
-import { SEATS_PER_TABLE } from '../../data/floorplan';
-import { parseSeatKey, seatKey, validateState } from '../../domain/seating';
+import { LEGACY_SEATS } from '../../data/floorplan';
+import { parseSeatKey, seatKey, validateState, withTableSpec } from '../../domain/seating';
 import { validateTables } from '../../domain/layout';
 import type { Guest, Layout, SeatingState, TableDef, ViewPrefs } from '../../domain/types';
 
@@ -29,7 +29,7 @@ export function createBackup(snap: AppSnapshot, now = new Date()): BackupFile {
     versao: BACKUP_VERSION,
     exportadoEm: now.toISOString(),
     convidados: Object.values(snap.seating.guests),
-    mesas: snap.layout.tables.map((t) => ({ ...t, lugares: SEATS_PER_TABLE })),
+    mesas: snap.layout.tables.map((t) => ({ ...t, lugares: t.seats })),
     distribuicao: Object.entries(snap.seating.assignments)
       .map(([k, convidadoId]) => {
         const r = parseSeatKey(k)!;
@@ -41,7 +41,7 @@ export function createBackup(snap: AppSnapshot, now = new Date()): BackupFile {
   };
 }
 
-export type RestoreResult = { ok: true; snapshot: AppSnapshot; summary: string } | { ok: false; errors: string[] };
+export type RestoreResult = { ok: true; snapshot: AppSnapshot; summary: string; legacy: boolean } | { ok: false; errors: string[] };
 
 const RSVPS = new Set(['pendente', 'confirmado', 'recusado']);
 
@@ -84,25 +84,33 @@ export function parseBackup(text: string, fallbackPrefs: ViewPrefs): RestoreResu
       createdAt: g.createdAt || new Date().toISOString(),
     };
   }
-  const assignments: Record<string, string> = {};
-  for (const d of b.distribuicao as BackupFile['distribuicao']) {
-    const key = seatKey(Number(d?.mesa), Number(d?.lugar));
-    if (!parseSeatKey(key)) { errors.push(`Assento inválido: mesa ${d?.mesa}, lugar ${d?.lugar}`); continue; }
-    if (assignments[key]) errors.push(`Assento ${key} aparece duas vezes.`);
-    assignments[key] = d.convidadoId;
-  }
-  if (errors.length) return { ok: false, errors };
-  const seating: SeatingState = { guests, assignments };
-  const inv = validateState(seating);
-  if (inv.length) return { ok: false, errors: inv };
-
+  // Mesas do próprio backup (lugares = quantidade de cada mesa; backups antigos tinham 10)
   const tables = (b.mesas as BackupFile['mesas'])
-    .map(({ number, shape, x, y, seatRotation }) => ({ number, shape, x, y, seatRotation: Number(seatRotation) || 0 }))
+    .map(({ number, shape, x, y, seatRotation, lugares, seats }) => ({
+      number, shape, x, y,
+      seatRotation: Number(seatRotation) || 0,
+      seats: Number.isInteger(lugares) ? lugares : Number.isInteger(seats) ? seats : LEGACY_SEATS,
+    }))
     .sort((a, c) => a.number - c.number);
+  const assignments: Record<string, string> = {};
+  const inv = withTableSpec(tables, () => {
+    for (const d of b.distribuicao as BackupFile['distribuicao']) {
+      const key = seatKey(Number(d?.mesa), Number(d?.lugar));
+      if (!parseSeatKey(key)) { errors.push(`Assento inválido: mesa ${d?.mesa}, lugar ${d?.lugar}`); continue; }
+      if (assignments[key]) errors.push(`Assento ${key} aparece duas vezes.`);
+      assignments[key] = d.convidadoId;
+    }
+    return errors.length ? [] : validateState({ guests, assignments });
+  });
+  if (errors.length) return { ok: false, errors };
+  if (inv.length) return { ok: false, errors: inv };
+  const seating: SeatingState = { guests, assignments };
+
   const prefs: ViewPrefs = { ...fallbackPrefs, ...(b.preferencias ?? {}) };
   return {
     ok: true,
     snapshot: { seating, layout: { tables, customPlan: b.plantaPersonalizada || undefined }, prefs },
     summary: `${Object.keys(guests).length} convidados e ${Object.keys(assignments).length} lugares ocupados`,
+    legacy: (b.mesas as Array<Partial<TableDef> & { lugares?: number }>).every((m) => m.seats === undefined && (m.lugares === undefined || m.lugares === LEGACY_SEATS)) && b.mesas!.length === 28,
   };
 }

@@ -11,7 +11,7 @@ import { confirmAction, useUi } from '../../state/ui';
 import { Modal } from '../common/Modal';
 
 const DESC: Record<ExportKind, string> = {
-  'por-mesa': 'Mesa, assento, nome, família, acompanhante, presença e observações — os 280 lugares, inclusive os livres.',
+  'por-mesa': 'Mesa, assento, nome, família, acompanhante, presença e observações — todos os lugares, inclusive os livres.',
   alfabetica: 'Nome do convidado com mesa e assento, em ordem alfabética. Ideal para a recepção.',
   'sem-lugar': 'Somente quem ainda não foi distribuído.',
 };
@@ -74,7 +74,11 @@ export function BackupDialog() {
       body: `O backup contém ${r.summary}. Os ${total} convidados e a distribuição atuais serão substituídos (dá para desfazer em seguida).`,
       confirmLabel: 'Restaurar backup',
       danger: true,
-      onConfirm: () => { replaceAll(r.snapshot, 'Restaurar backup'); toast('ok', `Backup restaurado: ${r.summary}.`, true); },
+      onConfirm: () => {
+        replaceAll(r.snapshot, 'Restaurar backup');
+        toast('ok', `Backup restaurado: ${r.summary}.`, true);
+        if (r.legacy) useApp.setState({ pendingUpgrade: true }); // backup no formato antigo: oferece a conversão
+      },
     });
   };
 

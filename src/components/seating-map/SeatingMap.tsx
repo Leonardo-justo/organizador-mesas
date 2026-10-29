@@ -176,7 +176,7 @@ export function SeatingMap() {
             className="mapa-svg"
             viewBox={`0 0 ${plan.width} ${plan.height}`}
             role="group"
-            aria-label="Planta do salão com 28 mesas"
+            aria-label={`Planta do salão com ${tables.length} mesas`}
             data-testid="mapa-2d"
           >
             <image href={plan.src} x={0} y={0} width={plan.width} height={plan.height} preserveAspectRatio="none" />
@@ -206,7 +206,7 @@ export function SeatingMap() {
           {shown.map((t) => <TableDropZone key={t.number} table={t} W={plan.width} disabled={calibrating} sizeUnits={showNames ? card.w : undefined} />)}
         </div>
       </div>
-      {!calibrating && <Tip id="mapa">Clique em uma mesa para ver e editar os 10 lugares. Ao ampliar (ou em “Ver nomes nas mesas”), cada mesa mostra os nomes dos 10 lugares.</Tip>}
+      {!calibrating && <Tip id="mapa">Clique em uma mesa para ver e editar os lugares. Ao ampliar (ou em “Ver nomes nas mesas”), cada mesa mostra os nomes de quem está sentado.</Tip>}
     </div>
   );
 }

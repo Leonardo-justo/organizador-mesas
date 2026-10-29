@@ -208,7 +208,7 @@ export function FullTableDialog() {
   const g = seating.guests[p.guestId];
   if (!g) return null;
   const from = S.seatOf(seating, p.guestId);
-  const occupants = S.seatNumbers()
+  const occupants = S.seatNumbers(p.table)
     .map((n) => ({ n, id: seating.assignments[S.seatKey(p.table, n)] }))
     .filter((o): o is { n: number; id: string } => !!o.id && !!seating.guests[o.id]);
   return (
@@ -260,25 +260,58 @@ export function SwapTableDialog({ table }: { table: number }) {
       <div className="grade-mesas" role="list" data-testid="destinos-mesa">
         {S.tableNumbers().filter((t) => t !== table).map((t) => {
           const k = S.tableOccupancy(seating.assignments, t);
-          const first = S.seatNumbers().map((s) => seating.guests[seating.assignments[S.seatKey(t, s)] ?? ''])
+          const first = S.seatNumbers(t).map((s) => seating.guests[seating.assignments[S.seatKey(t, s)] ?? ''])
             .filter(Boolean).slice(0, 2).map((g) => label(g!)).join(', ');
           return (
             <button
               key={t}
               role="listitem"
               className="destino-mesa"
-              aria-label={`Trocar com a mesa ${t} (${k} de 10)`}
+              aria-label={`Trocar com a mesa ${t} (${k} de ${S.seatsOf(t)})`}
               onClick={() => {
                 if (apply(S.swapTables(seating, table, t), 'Trocar mesa inteira')) { close(); selectTable(t, true); }
               }}
             >
               <b>Mesa {t}</b>
-              <span className={`selo ${k === 10 ? 'completa' : k ? 'parcial' : ''}`}>{k === 0 ? 'vazia' : `${k}/10`}</span>
+              <span className={`selo ${k >= S.seatsOf(t) ? 'completa' : k ? 'parcial' : ''}`}>{k === 0 ? 'vazia' : `${k}/${S.seatsOf(t)}`}</span>
               <small>{k ? `${first}${k > 2 ? '…' : ''}` : 'grupo só muda de mesa'}</small>
             </button>
           );
         })}
       </div>
+    </Modal>
+  );
+}
+
+/** Conversão dos dados antigos (28 mesas de 10) para o novo salão (35 mesas de 8). */
+export function UpgradeDialog() {
+  const pending = useApp((s) => s.pendingUpgrade);
+  const apply = useApp((s) => s.applyUpgrade);
+  const seated = useApp((s) => Object.keys(s.seating.assignments).length);
+  const extra = useApp((s) => Object.keys(s.seating.assignments).filter((k) => Number(k.split('-')[1]) > 8).length);
+  if (!pending) return null;
+  return (
+    <Modal
+      title="Novo salão: 35 mesas de 8 lugares"
+      subtitle="Agora são 32 mesas redondas e 3 retangulares (11, 25 e a nova 29), com 8 lugares cada — 280 lugares no total."
+      onClose={() => apply('depois')}
+      wide
+      footer={<button className="btn" onClick={() => apply('depois')}>Agora não (manter 28 mesas de 10)</button>}
+    >
+      <p style={{ margin: 0 }}>
+        Você tem {seated} convidado(s) sentados no formato antigo. Como quer adaptar a distribuição?
+      </p>
+      <div className="opcoes">
+        <button className="opcao" style={{ textAlign: 'left', background: 'none' }} onClick={() => apply('redistribuir')} data-testid="upgrade-redistribuir">
+          <span><b>Redistribuir todos na mesma ordem (recomendado)</b>
+            <small>Mantém a sequência mesa por mesa e preenche 8 por mesa, usando também as mesas novas (29 a 35). Ninguém fica sem lugar.</small></span>
+        </button>
+        <button className="opcao" style={{ textAlign: 'left', background: 'none' }} onClick={() => apply('manter')} data-testid="upgrade-manter">
+          <span><b>Manter os lugares 1 a 8 de cada mesa</b>
+            <small>Quem já está nos lugares 1–8 não muda; {extra} convidado(s) dos lugares 9 e 10 voltam para a lista para você distribuir nas mesas novas.</small></span>
+        </button>
+      </div>
+      <p className="nota" style={{ margin: 0 }}>Nenhum cadastro é excluído. As mesas 1–28 continuam onde estão; as novas aparecem em áreas livres e podem ser movidas em “Mover mesas”.</p>
     </Modal>
   );
 }

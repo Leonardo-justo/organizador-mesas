@@ -15,22 +15,19 @@ let state: SeatingState = { guests: {}, assignments: {} };
 let r = S.addGuests(state, guests);
 if (!r.ok) throw new Error(r.reason);
 state = r.state;
-let slot = 0;
-for (const g of guests) {
-  if (g.rsvp !== 'confirmado') continue;
-  const table = Math.floor(slot / 10) + 1, seat = (slot % 10) + 1;
-  r = S.placeGuest(state, g.id, { table, seat });
-  if (!r.ok) throw new Error(r.reason);
-  state = r.state;
-  slot++;
-}
+// confirmados em sequência: mesa 1 lugares 1..N, depois mesa 2, ...
+const seq = S.placeSequential(state, guests.filter((g) => g.rsvp === 'confirmado').map((g) => g.id), 1);
+if (!seq.ok) throw new Error(seq.reason);
+state = seq.state;
 const errors = S.validateState(state);
 if (errors.length) throw new Error(errors.join('\n'));
+const keepDate = process.argv[4]; // mantém a data do backup anterior (não pergunta de novo a quem já carregou)
 const backup = createBackup({
   seating: state,
   layout: { tables: defaultTables() },
   prefs: { mode: '2d', zoom: 1, spacing: SPACING_ON, showNamesOnPrint: true, paper: 'A3', tipsDismissed: ['boas-vindas'] },
 });
+if (keepDate) backup.exportadoEm = keepDate;
 writeFileSync(output, JSON.stringify(backup, null, 2));
 const st = S.computeStats(state);
 console.log(JSON.stringify(st));

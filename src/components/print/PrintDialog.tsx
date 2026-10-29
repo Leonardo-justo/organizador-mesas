@@ -1,7 +1,6 @@
 import { Printer } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { SEATS_PER_TABLE } from '../../data/floorplan';
 import { compareNames } from '../../domain/guests';
 import * as S from '../../domain/seating';
 import { useApp } from '../../state/store';
@@ -32,9 +31,9 @@ function PrintContent({ o }: { o: PrintOpts }) {
   };
   const tableCard = (t: number) => (
     <div className="imp-mesa" key={t}>
-      <h2>Mesa {t} <small>{S.tableOccupancy(seating.assignments, t)}/{SEATS_PER_TABLE} lugares</small></h2>
+      <h2>Mesa {t} <small>{S.tableOccupancy(seating.assignments, t)}/{S.seatsOf(t)} lugares</small></h2>
       <ol>
-        {S.seatNumbers().map((s) => {
+        {S.seatNumbers(t).map((s) => {
           const g = nameAt(t, s);
           return <li key={s} className={g ? '' : 'livre'}>{g ? g.fullName : '— livre —'}</li>;
         })}
@@ -67,9 +66,9 @@ function PrintContent({ o }: { o: PrintOpts }) {
           ))}
         </svg>
         <div className="imp-legenda">
-          <span><svg width="14" height="14"><circle cx="7" cy="7" r="6" fill="#fff" stroke="#9a9483" strokeDasharray="3 2" /></svg> Mesa vazia (0/10)</span>
-          <span><svg width="14" height="14"><circle cx="7" cy="7" r="6" fill="#dfe8dc" stroke="#6f8a6b" /></svg> Parcialmente ocupada (ex.: 6/10)</span>
-          <span><svg width="14" height="14"><circle cx="7" cy="7" r="6" fill="#4e6550" /></svg> Completa (✓ 10/10)</span>
+          <span><svg width="14" height="14"><circle cx="7" cy="7" r="6" fill="#fff" stroke="#9a9483" strokeDasharray="3 2" /></svg> Mesa vazia</span>
+          <span><svg width="14" height="14"><circle cx="7" cy="7" r="6" fill="#dfe8dc" stroke="#6f8a6b" /></svg> Parcialmente ocupada (ex.: 6/8)</span>
+          <span><svg width="14" height="14"><circle cx="7" cy="7" r="6" fill="#4e6550" /></svg> Completa (todos os lugares ocupados)</span>
           <span><svg width="14" height="14"><circle cx="7" cy="7" r="4" fill="#6f8a6b" /></svg> Cadeira ocupada{o.initials ? ' (iniciais do convidado)' : ''}</span>
           <span><svg width="14" height="14"><circle cx="7" cy="7" r="4" fill="#fff" stroke="#9a9483" /></svg> Cadeira livre</span>
           <span>Lugar 1 no topo de cada mesa, sentido horário.</span>
@@ -134,11 +133,11 @@ export function PrintDialog({ onlyTable }: { onlyTable?: number }) {
               <label className="opcao"><input type="radio" checked={o.paper === 'A4'} onChange={() => setO({ ...o, paper: 'A4' })} /><span><b>A4 paisagem</b><small>Impressora comum; a planta é reduzida proporcionalmente.</small></span></label>
             </div>
             <label><input type="checkbox" checked={o.initials} onChange={(e) => setO({ ...o, initials: e.target.checked })} /> Mostrar as iniciais dos convidados nas cadeiras do mapa</label>
-            <label><input type="checkbox" checked={o.tableLists} onChange={(e) => setO({ ...o, tableLists: e.target.checked })} /> Incluir a lista com os 10 lugares de cada mesa</label>
+            <label><input type="checkbox" checked={o.tableLists} onChange={(e) => setO({ ...o, tableLists: e.target.checked })} /> Incluir a lista com os lugares de cada mesa</label>
             <label><input type="checkbox" checked={o.alphabetical} onChange={(e) => setO({ ...o, alphabetical: e.target.checked })} /> Incluir lista alfabética (para a recepção)</label>
           </>
         )}
-        {onlyTable && <p style={{ margin: 0 }}>Uma página A4 com os 10 lugares da mesa {onlyTable}, em letras grandes.</p>}
+        {onlyTable && <p style={{ margin: 0 }}>Uma página A4 com os lugares da mesa {onlyTable}, em letras grandes.</p>}
       </Modal>
       {host && createPortal(<PrintContent o={o} />, host)}
     </>
