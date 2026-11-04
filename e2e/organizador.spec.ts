@@ -38,7 +38,7 @@ const seat = (page: Page, t: number, s: number) => page.getByTestId(`assento-${t
 
 test('planta com 28 mesas nos lugares medidos', async ({ page }) => {
   await start(page);
-  await expect(page.locator('g[data-testid^=mesa-]')).toHaveCount(35);
+  await expect(page.locator('g[data-testid^=mesa-]')).toHaveCount(29);
   // compara com a planta original (sem o espaçamento visual)
   await page.getByRole('button', { name: 'Mesas espaçadas' }).click();
   const svg = (await page.getByTestId('mapa-2d').boundingBox())!;
@@ -50,7 +50,7 @@ test('planta com 28 mesas nos lugares medidos', async ({ page }) => {
   expect(Math.abs(cy - 229.8)).toBeLessThan(1.5);
   await page.getByTestId('mesa-5').click();
   await expect(page.getByTestId('painel-mesa')).toContainText('Mesa 5');
-  await expect(page.locator('[data-testid^=assento-5-]')).toHaveCount(8);
+  await expect(page.locator('[data-testid^=assento-5-]')).toHaveCount(10);
   // espaçamento visual afasta as mesas 15 e 16 sem mudar as coordenadas salvas
   const gap = async () => {
     const a = (await page.getByTestId('mesa-16').locator('circle.anel').boundingBox())!;
@@ -73,7 +73,7 @@ test('zoom mostra os nomes dentro de cada mesa', async ({ page }) => {
   await page.getByTestId('ver-nomes').click();
   await expect(nameText('Aline Almeida')).toBeVisible();
   await expect(nameText('André Nascimento')).toBeVisible();
-  await expect(nameText('livre')).toHaveCount(6);
+  await expect(nameText('livre')).toHaveCount(8);
   await page.screenshot({ path: 'test-results/nomes-zoom.png' });
   // ainda dá para soltar convidados nas mesas em modo nomes
   await page.getByTestId('painel-mesa').getByLabel('Fechar painel da mesa').click();
@@ -150,24 +150,24 @@ test('troca em dois toques, mesa completa e escolher quem sai da mesa lotada', a
   // lote: 6 selecionados na mesa 20 (já com 2) => completa (8 lugares)
   const boxes = page.locator('[data-testid=linha-convidado] input[type=checkbox]');
   let marked = 0;
-  for (let i = 0; marked < 6; i++) {
+  for (let i = 0; marked < 8; i++) {
     const r = page.locator('[data-testid=linha-convidado]').nth(i);
     if ((await r.textContent())?.includes('Sem lugar')) { await boxes.nth(i).check(); marked++; }
   }
   await page.getByLabel('Mesa de destino').selectOption('20');
   await page.getByRole('button', { name: 'Distribuir' }).click();
-  await expect(page.getByTestId('ocupados')).toContainText('8');
-  await expect(page.getByTestId('mesa-20')).toHaveAttribute('aria-label', /8 de 8 lugares ocupados \(completa\)/);
+  await expect(page.getByTestId('ocupados')).toContainText('10');
+  await expect(page.getByTestId('mesa-20')).toHaveAttribute('aria-label', /10 de 10 lugares ocupados \(completa\)/);
   // mesa lotada: escolher quem sai (Tirar = volta para a lista)
   const semLugar = page.locator('[data-testid=linha-convidado]').filter({ hasText: 'Sem lugar' }).first();
   const novo = (await semLugar.getAttribute('data-nome'))!;
   await drag(page, semLugar, page.getByTestId('mesa-20'));
   await expect(page.getByRole('dialog')).toContainText('A mesa 20 está lotada');
-  await expect(page.getByTestId('lista-mesa-lotada').getByRole('listitem')).toHaveCount(8);
+  await expect(page.getByTestId('lista-mesa-lotada').getByRole('listitem')).toHaveCount(10);
   await page.getByRole('button', { name: 'Tirar Aline Oliveira da mesa' }).click();
   await expect(seat(page, 20, 3)).toContainText(novo);
   await expect(row(page, 'Aline Oliveira')).toContainText('Sem lugar');
-  await expect(page.getByTestId('ind-distribuidos')).toHaveText('8');
+  await expect(page.getByTestId('ind-distribuidos')).toHaveText('10');
   await expect(page.getByTestId('ind-total')).toHaveText('59');
   // desfazer volta exatamente ao estado anterior
   await page.locator('.topo').getByRole('button', { name: 'Desfazer', exact: true }).click();
@@ -183,7 +183,7 @@ test('troca em dois toques, mesa completa e escolher quem sai da mesa lotada', a
   // cancelar não altera nada
   await drag(page, page.locator('[data-testid=linha-convidado]').filter({ hasText: 'Sem lugar' }).first(), page.getByTestId('mesa-20'));
   await page.getByRole('dialog').getByRole('button', { name: 'Cancelar' }).click();
-  await expect(page.getByTestId('ind-distribuidos')).toHaveText('9');
+  await expect(page.getByTestId('ind-distribuidos')).toHaveText('11');
 });
 
 test('trocar a mesa inteira de uma vez', async ({ page }) => {
@@ -194,9 +194,9 @@ test('trocar a mesa inteira de uma vez', async ({ page }) => {
   await drag(page, row(page, 'André Nascimento'), page.getByTestId('mesa-8'));
   await page.getByTestId('mesa-3').click();
   await page.getByTestId('trocar-mesa').click();
-  await expect(page.getByTestId('destinos-mesa').getByRole('listitem')).toHaveCount(34);
+  await expect(page.getByTestId('destinos-mesa').getByRole('listitem')).toHaveCount(28);
   await page.screenshot({ path: 'test-results/trocar-mesa.png' });
-  await page.getByRole('listitem', { name: 'Trocar com a mesa 8 (1 de 8)' }).click();
+  await page.getByRole('listitem', { name: 'Trocar com a mesa 8 (1 de 10)' }).click();
   await expect(row(page, 'Aline Almeida')).toContainText('Mesa 8 · lugar 1');
   await expect(row(page, 'Aline Oliveira')).toContainText('Mesa 8 · lugar 2');
   await expect(row(page, 'André Nascimento')).toContainText('Mesa 3 · lugar 1');
@@ -254,7 +254,7 @@ test('tela Mesas em lista: adicionar em sequência sem usar o mapa', async ({ pa
   await importSample(page);
   await page.getByTestId('modo-lista').click();
   await expect(page.getByTestId('tela-lista')).toBeVisible();
-  await expect(page.locator('section[data-testid^=lv-mesa-]')).toHaveCount(35);
+  await expect(page.locator('section[data-testid^=lv-mesa-]')).toHaveCount(29);
   const busca = page.getByTestId('lv-busca');
   // convidado existente
   await busca.fill('aline alm');
@@ -273,7 +273,7 @@ test('tela Mesas em lista: adicionar em sequência sem usar o mapa', async ({ pa
   // colocar todos os confirmados em sequência a partir da mesa 5
   await page.getByTestId('lv-colocar-todos').click();
   await page.getByTestId('confirmar').click();
-  await expect(page.getByTestId('lv-mesa-5')).toContainText('8/8');
+  await expect(page.getByTestId('lv-mesa-5')).toContainText('10/10');
   await expect(page.getByTestId('ind-sem-lugar')).toHaveText('24');
   // arrastar entre cartões continua funcionando
   await drag(page, page.getByTestId('lv-1-1'), page.getByTestId('lv-2-4'));
@@ -297,72 +297,87 @@ test('importar já colocando os confirmados nas mesas', async ({ page }) => {
   await expect(page.getByTestId('resultado-importacao')).toContainText('35 confirmado(s) colocados nas mesas');
   await page.getByRole('button', { name: 'Concluir' }).click();
   await expect(page.getByTestId('ind-distribuidos')).toHaveText('35');
-  await expect(page.getByTestId('mesa-4')).toHaveAttribute('aria-label', /8 de 8/);
-  await expect(page.getByTestId('mesa-5')).toHaveAttribute('aria-label', /3 de 8/);
+  await expect(page.getByTestId('mesa-3')).toHaveAttribute('aria-label', /10 de 10/);
+  await expect(page.getByTestId('mesa-4')).toHaveAttribute('aria-label', /5 de 10/);
 });
 
 test('adicionar, remover e mudar lugares de mesas', async ({ page }) => {
   await start(page);
   await importSample(page);
-  await drag(page, row(page, 'Aline Almeida'), page.getByTestId('mesa-35'));
+  await drag(page, row(page, 'Aline Almeida'), page.getByTestId('mesa-29'));
   await page.getByRole('button', { name: 'Mover mesas' }).click();
   await page.getByTestId('add-mesa-redonda').click();
   await page.getByTestId('add-mesa-ret').click();
-  await expect(page.locator('g[data-testid^=mesa-]')).toHaveCount(37);
-  // mesa 37 (retangular) selecionada: 10 lugares
-  await expect(page.getByTestId('mesa-selecionada')).toContainText('Mesa 37');
+  await expect(page.locator('g[data-testid^=mesa-]')).toHaveCount(31);
+  // mesa 31 (retangular) selecionada: 10 -> 12 lugares
+  await expect(page.getByTestId('mesa-selecionada')).toContainText('Mesa 31');
   await page.getByRole('button', { name: 'Mais um lugar' }).click();
   await page.getByRole('button', { name: 'Mais um lugar' }).click();
-  await expect(page.getByTestId('lugares-mesa')).toHaveText('10');
-  // remover a mesa 35 (tem 1 convidado): pede confirmação
-  await page.getByTestId('mesa-35').click();
+  await expect(page.getByTestId('lugares-mesa')).toHaveText('12');
+  // remover a mesa 29 (tem 1 convidado): pede confirmação
+  await page.getByTestId('mesa-29').click();
   await page.getByTestId('remover-mesa').click();
   await page.getByTestId('confirmar').click();
   await expect(page.getByTestId('faixa-calibrar')).toContainText('1 convidado(s) de lugares removidos voltam para a lista');
   await page.getByTestId('concluir-calibracao').click();
-  await expect(page.locator('g[data-testid^=mesa-]')).toHaveCount(36);
+  await expect(page.locator('g[data-testid^=mesa-]')).toHaveCount(30);
   await expect(row(page, 'Aline Almeida')).toContainText('Sem lugar');
   await expect(page.getByTestId('ind-total')).toHaveText('59');
-  await expect(page.getByTestId('ind-livres')).toContainText('290'); // 34×8 + 8 + 10
-  // a mesa nova recebe convidados
-  await page.getByTestId('mesa-37').scrollIntoViewIfNeeded();
-  await drag(page, row(page, 'Aline Almeida'), page.getByTestId('mesa-37'));
-  await expect(page.locator('[data-testid^=assento-37-]')).toHaveCount(10);
-  await expect(page.getByTestId('assento-37-1')).toContainText('Aline Almeida');
+  await expect(page.getByTestId('ind-livres')).toContainText('302'); // 28×10 + 10 + 12
+  await page.getByTestId('mesa-31').scrollIntoViewIfNeeded();
+  await drag(page, row(page, 'Aline Almeida'), page.getByTestId('mesa-31'));
+  await expect(page.locator('[data-testid^=assento-31-]')).toHaveCount(12);
+  await expect(page.getByTestId('assento-31-1')).toContainText('Aline Almeida');
   await expect(page.getByTestId('salvamento')).toContainText('Salvo em');
   await page.reload();
-  await expect(page.locator('g[data-testid^=mesa-]')).toHaveCount(36);
-  await expect(row(page, 'Aline Almeida')).toContainText('Mesa 37 · lugar 1');
+  await expect(page.locator('g[data-testid^=mesa-]')).toHaveCount(30);
+  await expect(row(page, 'Aline Almeida')).toContainText('Mesa 31 · lugar 1');
 });
 
-test('dados antigos (28 mesas de 10) são convertidos para 35 de 8 sem perder ninguém', async ({ page }) => {
+async function seedDb(page: Page, tables: unknown[], perTable: number, n: number) {
   await page.goto('/');
-  await page.evaluate(async () => {
+  await page.evaluate(async ({ tables, perTable, n }) => {
     const guests: Record<string, unknown> = {};
     const assignments: Record<string, string> = {};
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < n; i++) {
       const id = `g${i}`;
       guests[id] = { id, fullName: `Convidado ${String(i).padStart(2, '0')}`, rsvp: 'confirmado', createdAt: new Date(1e12 + i).toISOString() };
-      assignments[`${Math.floor(i / 10) + 1}-${(i % 10) + 1}`] = id;
+      assignments[`${Math.floor(i / perTable) + 1}-${(i % perTable) + 1}`] = id;
     }
-    const tables = Array.from({ length: 28 }, (_, i) => ({ number: i + 1, shape: i === 10 || i === 24 ? 'rect' : 'round', x: 0.1 + (i % 7) * 0.1, y: 0.2 + Math.floor(i / 7) * 0.15, seatRotation: 0 }));
     const rec = { seating: { guests, assignments }, layout: { tables }, prefs: { mode: '2d', zoom: 1, spacing: 1.22, showNamesOnPrint: true, paper: 'A3', tipsDismissed: ['boas-vindas'] }, schemaVersion: 1, savedAt: new Date().toISOString() };
     await new Promise<void>((res, rej) => {
       const req = indexedDB.open('organizador-mesas-casamento', 1);
       req.onupgradeneeded = () => req.result.createObjectStore('estado');
       req.onsuccess = () => { const tx = req.result.transaction('estado', 'readwrite'); tx.objectStore('estado').put(rec, 'atual'); tx.oncomplete = () => { req.result.close(); res(); }; tx.onerror = () => rej(tx.error); };
     });
-  });
+  }, { tables, perTable, n });
   await page.reload();
-  await expect(page.getByRole('dialog')).toContainText('Novo salão: 35 mesas de 8 lugares');
-  await page.getByTestId('upgrade-redistribuir').click();
-  await expect(page.locator('g[data-testid^=mesa-]')).toHaveCount(35);
+}
+const pos = (i: number) => ({ x: 0.1 + (i % 7) * 0.1, y: 0.2 + Math.floor(i / 7) * 0.12 });
+
+test('dados do formato inicial (28 mesas de 10) ganham a mesa 29 sem ninguém mudar de lugar', async ({ page }) => {
+  const tables = Array.from({ length: 28 }, (_, i) => ({ number: i + 1, shape: i === 10 || i === 24 ? 'rect' : 'round', ...pos(i), seatRotation: 0 }));
+  await seedDb(page, tables, 10, 30);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.locator('g[data-testid^=mesa-]')).toHaveCount(29);
   await expect(page.getByTestId('ind-distribuidos')).toHaveText('30');
-  await expect(row(page, 'Convidado 08')).toContainText('Mesa 2 · lugar 1');
-  await expect(page.getByTestId('mesa-4')).toHaveAttribute('aria-label', /6 de 8/);
+  await expect(row(page, 'Convidado 12')).toContainText('Mesa 2 · lugar 3');
+  await expect(page.getByTestId('ind-livres')).toHaveText('260');
+  await expect(page.getByTestId('indicadores')).toContainText('livres de 290');
+});
+
+test('dados do layout de 35 mesas de 8 são convertidos para 29 de 10', async ({ page }) => {
+  const tables = Array.from({ length: 35 }, (_, i) => ({ number: i + 1, shape: [10, 24, 28].includes(i) ? 'rect' : 'round', ...pos(i), seatRotation: 0, seats: 8 }));
+  await seedDb(page, tables, 8, 263);
+  await expect(page.getByRole('dialog')).toContainText('Salão atualizado: 29 mesas de 10 lugares');
+  await page.getByTestId('upgrade-redistribuir').click();
+  await expect(page.locator('g[data-testid^=mesa-]')).toHaveCount(29);
+  await expect(page.getByTestId('ind-distribuidos')).toHaveText('263');
+  await expect(row(page, 'Convidado 10')).toContainText('Mesa 2 · lugar 1');
+  await expect(page.getByTestId('salvamento')).toContainText('Salvo em');
   await page.reload();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.locator('g[data-testid^=mesa-]')).toHaveCount(35);
+  await expect(page.locator('g[data-testid^=mesa-]')).toHaveCount(29);
 });
 
 test('busca localiza convidado; dados e calibração persistem após recarregar', async ({ page }) => {
@@ -420,7 +435,7 @@ test('2D e 3D compartilham seleção e distribuição', async ({ page }) => {
   await page.screenshot({ path: 'test-results/tela-3d.png' });
   await page.getByTestId('alternar-modo').click();
   await expect(page.getByTestId('mesa-7')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByTestId('mesa-7')).toHaveAttribute('aria-label', /1 de 8/);
+  await expect(page.getByTestId('mesa-7')).toHaveAttribute('aria-label', /1 de 10/);
 });
 
 test('exportação, backup e restauração', async ({ page }) => {
@@ -432,7 +447,7 @@ test('exportação, backup e restauração', async ({ page }) => {
   const csv = readFileSync((await csvDl.path())!, 'utf-8');
   expect(csv.charCodeAt(0)).toBe(0xfeff);
   expect(csv).toContain('2;1;Aline Almeida;Família Almeida');
-  expect(csv.trim().split('\r\n')).toHaveLength(281);
+  expect(csv.trim().split('\r\n')).toHaveLength(291);
   const [xDl] = await Promise.all([page.waitForEvent('download'), page.getByTestId('exportar-xlsx').click()]);
   expect((await xDl.suggestedFilename())).toMatch(/\.xlsx$/);
   await page.getByRole('button', { name: 'Fechar' }).last().click();
@@ -443,7 +458,8 @@ test('exportação, backup e restauração', async ({ page }) => {
   const json = JSON.parse(readFileSync(backupPath, 'utf-8'));
   expect(json.versao).toBe(1);
   expect(json.convidados).toHaveLength(59);
-  expect(json.mesas).toHaveLength(35);
+  expect(json.mesas).toHaveLength(29);
+  expect(json.versaoMesas).toBe(3);
   await page.getByRole('button', { name: 'Fechar' }).last().click();
 
   // altera tudo: exclui a pessoa sentada
@@ -475,7 +491,7 @@ test('impressão gera mapa com legenda e listas por mesa', async ({ page }) => {
   const imp = page.locator('#impressao');
   await expect(imp).toContainText('Mapa das mesas');
   await expect(imp).toContainText('Completa (todos os lugares ocupados)');
-  await expect(imp.locator('.imp-mesa')).toHaveCount(35);
+  await expect(imp.locator('.imp-mesa')).toHaveCount(29);
   await expect(imp).toContainText('Aline Almeida');
   await page.emulateMedia({ media: 'print' });
   await page.screenshot({ path: 'test-results/impressao.png', fullPage: true });

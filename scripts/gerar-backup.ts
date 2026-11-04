@@ -1,7 +1,7 @@
 // Gera um backup do organizador a partir de uma lista JSON (ordem preservada).
 // Coloca os confirmados em sequência: mesa 1 lugares 1–10, mesa 2, ...
 import { readFileSync, writeFileSync } from 'node:fs';
-import { defaultTables } from '../src/data/floorplan';
+import { LAYOUT_VERSION, defaultTables } from '../src/data/floorplan';
 import { createGuest } from '../src/domain/guests';
 import * as S from '../src/domain/seating';
 import type { Rsvp, SeatingState } from '../src/domain/types';
@@ -24,7 +24,7 @@ if (errors.length) throw new Error(errors.join('\n'));
 const keepDate = process.argv[4]; // mantém a data do backup anterior (não pergunta de novo a quem já carregou)
 const backup = createBackup({
   seating: state,
-  layout: { tables: defaultTables() },
+  layout: { tables: defaultTables(), version: LAYOUT_VERSION },
   prefs: { mode: '2d', zoom: 1, spacing: SPACING_ON, showNamesOnPrint: true, paper: 'A3', tipsDismissed: ['boas-vindas'] },
 });
 if (keepDate) backup.exportadoEm = keepDate;

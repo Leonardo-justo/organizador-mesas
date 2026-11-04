@@ -15,6 +15,8 @@ export interface BackupFile {
   distribuicao: Array<{ mesa: number; lugar: number; convidadoId: string }>;
   preferencias: ViewPrefs;
   plantaPersonalizada?: string;
+  /** Versão do layout de mesas (ausente em backups antigos). */
+  versaoMesas?: number;
 }
 
 export interface AppSnapshot {
@@ -38,10 +40,11 @@ export function createBackup(snap: AppSnapshot, now = new Date()): BackupFile {
       .sort((a, b) => a.mesa - b.mesa || a.lugar - b.lugar),
     preferencias: snap.prefs,
     plantaPersonalizada: snap.layout.customPlan,
+    versaoMesas: snap.layout.version,
   };
 }
 
-export type RestoreResult = { ok: true; snapshot: AppSnapshot; summary: string; legacy: boolean } | { ok: false; errors: string[] };
+export type RestoreResult = { ok: true; snapshot: AppSnapshot; summary: string } | { ok: false; errors: string[] };
 
 const RSVPS = new Set(['pendente', 'confirmado', 'recusado']);
 
@@ -109,8 +112,7 @@ export function parseBackup(text: string, fallbackPrefs: ViewPrefs): RestoreResu
   const prefs: ViewPrefs = { ...fallbackPrefs, ...(b.preferencias ?? {}) };
   return {
     ok: true,
-    snapshot: { seating, layout: { tables, customPlan: b.plantaPersonalizada || undefined }, prefs },
+    snapshot: { seating, layout: { tables, customPlan: b.plantaPersonalizada || undefined, version: typeof b.versaoMesas === 'number' ? b.versaoMesas : undefined }, prefs },
     summary: `${Object.keys(guests).length} convidados e ${Object.keys(assignments).length} lugares ocupados`,
-    legacy: (b.mesas as Array<Partial<TableDef> & { lugares?: number }>).every((m) => m.seats === undefined && (m.lugares === undefined || m.lugares === LEGACY_SEATS)) && b.mesas!.length === 28,
   };
 }

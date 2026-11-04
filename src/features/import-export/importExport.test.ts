@@ -53,12 +53,12 @@ describe('importação CSV', () => {
 });
 
 describe('exportação', () => {
-  it('gera lista por mesa com 280 linhas e acentos preservados', () => {
+  it('gera lista por mesa com 290 linhas e acentos preservados', () => {
     const g = createGuest({ fullName: 'Conceição Antônio', group: 'Família', rsvp: 'confirmado' });
     let s = { guests: { [g.id]: g }, assignments: {} };
     const r = S.placeGuest(s, g.id, { table: 5, seat: 3 }); if (!r.ok) throw new Error(); s = r.state;
     const rows = exportRows(s, 'por-mesa');
-    expect(rows).toHaveLength(281);
+    expect(rows).toHaveLength(291);
     expect(rows.find((x) => x[0] === '5' && x[1] === '3')?.[2]).toBe('Conceição Antônio');
     const csv = exportCsv(s, 'por-mesa');
     expect(csv.startsWith('﻿')).toBe(true);

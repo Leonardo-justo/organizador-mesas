@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { defaultTables } from '../data/floorplan';
 import { emptyHistory, record, redo as hRedo, undo as hUndo, type History } from '../domain/history';
-import { SPACING_ON, isLegacyLayout, newTable, sanitizeTables, upgradeLayout } from '../domain/layout';
+import { LAYOUT_VERSION } from '../data/floorplan';
+import { SPACING_ON, needsLayoutUpgrade, newTable, sanitizeTables, upgradeLayout } from '../domain/layout';
 import * as S from '../domain/seating';
 import type { Guest, Layout, SeatRef, SeatingState, TableDef, ViewPrefs } from '../domain/types';
 import type { AppSnapshot } from '../features/backup/backup';
@@ -91,6 +92,7 @@ export interface AppState {
   removeDraftTable: (n: number) => void;
   setDraftSeats: (n: number, seats: number) => void;
   applyUpgrade: (mode: 'manter' | 'redistribuir' | 'depois') => void;
+  checkLayoutUpgrade: () => void;
   finishCalibration: (save: boolean) => void;
   setCustomPlan: (dataUrl: string | undefined) => void;
 
@@ -105,7 +107,7 @@ export const useApp = create<AppState>((set, get) => ({
   loaded: false,
   seating: { guests: {}, assignments: {} },
   history: emptyHistory(),
-  layout: { tables: defaultTables() },
+  layout: { tables: defaultTables(), version: LAYOUT_VERSION },
   prefs: defaultPrefs(),
 
   selectedTable: null,
@@ -127,23 +129,31 @@ export const useApp = create<AppState>((set, get) => ({
   saveError: null,
 
   hydrate: (snap, savedAt) => {
-    const rawTables = snap?.layout?.tables;
-    const legacy = isLegacyLayout(rawTables);
-    const tables = sanitizeTables(rawTables);
+    const rawLayout = snap?.layout;
+    const tables = sanitizeTables(rawLayout?.tables);
     S.setTableSpec(tables);
     const seating = snap?.seating ?? { guests: {}, assignments: {} };
     const valid = S.validateState(seating).length === 0;
     set({
       loaded: true,
       seating: valid ? seating : { guests: seating.guests ?? {}, assignments: {} },
-      layout: { tables, customPlan: snap?.layout?.customPlan },
+      layout: { tables, customPlan: rawLayout?.customPlan, version: rawLayout ? rawLayout.version : LAYOUT_VERSION },
       prefs: { ...defaultPrefs(), ...(snap?.prefs ?? {}) },
       history: emptyHistory(),
       saveStatus: 'salvo',
       lastSavedAt: savedAt ?? null,
-      pendingUpgrade: legacy,
     });
     if (!valid) get().toast('erro', 'Os dados salvos tinham inconsistências na distribuição; os cadastros foram mantidos e os lugares foram liberados.');
+    get().checkLayoutUpgrade();
+  },
+
+  /** Layout de versão anterior: converte direto se ninguém perder o lugar; senão pergunta. */
+  checkLayoutUpgrade: () => {
+    const st = get();
+    if (!needsLayoutUpgrade(st.layout)) return;
+    const preview = S.adaptSeatingToTables(st.seating, upgradeLayout(st.layout.tables), 'manter');
+    if (preview.unseated === 0) st.applyUpgrade('manter');
+    else set({ pendingUpgrade: true });
   },
 
   applyUpgrade: (mode) => {
@@ -153,15 +163,16 @@ export const useApp = create<AppState>((set, get) => ({
     const r = S.adaptSeatingToTables(st.seating, tables, mode);
     S.setTableSpec(tables);
     set((x) => ({
-      layout: { ...x.layout, tables },
+      layout: { ...x.layout, tables, version: LAYOUT_VERSION },
       seating: r.state,
       history: emptyHistory(), // o histórico antigo usava outros lugares
       pendingUpgrade: false,
       selectedTable: null,
     }));
+    const total = tables.reduce((a, t) => a + t.seats, 0);
     get().toast('ok', mode === 'manter'
-      ? `Salão atualizado: ${tables.length} mesas de 8. ${r.kept} convidados ficaram no mesmo lugar; ${r.unseated} voltaram para a lista.`
-      : `Salão atualizado: ${tables.length} mesas de 8. ${r.moved} convidados redistribuídos na ordem${r.unseated ? `; ${r.unseated} ficaram sem lugar` : ''}.`);
+      ? `Salão atualizado: ${tables.length} mesas, ${total} lugares. ${r.kept} convidados ficaram no mesmo lugar${r.unseated ? `; ${r.unseated} voltaram para a lista` : ''}.`
+      : `Salão atualizado: ${tables.length} mesas, ${total} lugares. ${r.moved} convidados redistribuídos na ordem${r.unseated ? `; ${r.unseated} ficaram sem lugar` : ''}.`);
   },
 
   snapshot: () => {
@@ -172,6 +183,7 @@ export const useApp = create<AppState>((set, get) => ({
   replaceAll: (snap, label) => {
     const prev = get().seating;
     S.setTableSpec(snap.layout.tables);
+    setTimeout(() => get().checkLayoutUpgrade(), 0);
     set((st) => ({
       seating: snap.seating,
       layout: snap.layout,

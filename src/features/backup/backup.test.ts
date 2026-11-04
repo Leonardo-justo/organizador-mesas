@@ -13,7 +13,7 @@ function sample(): AppSnapshot {
   const r = S.placeGuest(seating, a.id, { table: 12, seat: 8 }); if (!r.ok) throw new Error(); seating = r.state;
   const tables = defaultTables();
   tables[0] = { ...tables[0], x: 0.5, y: 0.5, seatRotation: 36 };
-  return { seating, layout: { tables }, prefs: { ...defaultPrefs(), mode: '3d' } };
+  return { seating, layout: { tables, version: 3 }, prefs: { ...defaultPrefs(), mode: '3d' } };
 }
 
 describe('backup', () => {
@@ -22,13 +22,14 @@ describe('backup', () => {
     const json = JSON.stringify(createBackup(snap));
     const parsed = JSON.parse(json);
     expect(parsed.versao).toBe(1);
-    expect(parsed.mesas).toHaveLength(35);
-    expect(parsed.mesas[0].lugares).toBe(8);
+    expect(parsed.mesas).toHaveLength(29);
+    expect(parsed.mesas[0].lugares).toBe(10);
+    expect(parsed.versaoMesas).toBe(3);
     const r = parseBackup(json, defaultPrefs());
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.snapshot.seating).toEqual(snap.seating);
-      expect(r.snapshot.layout.tables[0]).toEqual({ number: 1, shape: 'round', x: 0.5, y: 0.5, seatRotation: 36, seats: 8 });
+      expect(r.snapshot.layout.tables[0]).toEqual({ number: 1, shape: 'round', x: 0.5, y: 0.5, seatRotation: 36, seats: 10 });
       expect(r.snapshot.prefs.mode).toBe('3d');
     }
   });

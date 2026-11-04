@@ -1,6 +1,6 @@
 # Organizador de Mesas do Casamento
 
-Aplicação web local para distribuir os convidados nas mesas (padrão: 35 mesas de 8 lugares — 32 redondas e 3 retangulares, 280 no total) sobre a planta real do salão, com mapa 2D, visualização 3D, arrastar e soltar, importação de planilhas, backup e impressão.
+Aplicação web local para distribuir os convidados nas mesas (padrão: 29 mesas de 10 lugares — 26 redondas e 3 retangulares, 290 no total) sobre a planta real do salão, com mapa 2D, visualização 3D, arrastar e soltar, importação de planilhas, backup e impressão.
 
 ## Como abrir
 
@@ -55,10 +55,10 @@ No botão **Mover mesas**, na barra do mapa, você pode:
 
 Quem estava num lugar que deixou de existir volta para a lista, e nenhum cadastro é excluído.
 
-Ao abrir dados do formato antigo (28 mesas de 10 lugares), o organizador pergunta como converter:
+Dados salvos em layouts anteriores são convertidos ao abrir:
 
-- **Redistribuir todos na mesma ordem**, com 8 por mesa;
-- ou **manter os lugares 1 a 8** e devolver os dos lugares 9 e 10 para a lista.
+- os dados de **28 mesas de 10** ganham a mesa 29 e ninguém muda de lugar;
+- os dados de **35 mesas de 8** fazem o organizador perguntar se você quer **redistribuir todos na mesma ordem** ou **manter cada um no lugar**. Na segunda opção, quem estava nas mesas 30 a 35 volta para a lista.
 
 ## A planta
 

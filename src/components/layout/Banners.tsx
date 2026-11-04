@@ -100,7 +100,7 @@ export function CalibrationBanner() {
           className="btn pequeno"
           onClick={() => confirmAction({
             title: 'Restaurar o salão padrão?',
-            body: 'Volta ao layout padrão: 35 mesas de 8 lugares (32 redondas e 3 retangulares) nas posições iniciais. A mudança só é gravada quando você clicar em “Concluir e salvar”.',
+            body: 'Volta ao layout padrão: 29 mesas de 10 lugares (26 redondas e as retangulares 11, 25 e 29) nas posições iniciais. A mudança só é gravada quando você clicar em “Concluir e salvar”.',
             confirmLabel: 'Restaurar padrão',
             onConfirm: reset,
           })}

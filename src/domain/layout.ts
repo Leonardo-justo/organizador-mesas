@@ -1,4 +1,4 @@
-import { DEFAULT_SEATS, LEGACY_SEATS, MAX_SEATS_PER_TABLE, MAX_TABLES, defaultTables } from '../data/floorplan';
+import { DEFAULT_SEATS, LAYOUT_VERSION, LEGACY_SEATS, MAX_SEATS_PER_TABLE, MAX_TABLES, defaultTables } from '../data/floorplan';
 import type { TableDef } from './types';
 
 export function validateTables(tables: unknown): string[] {
@@ -22,9 +22,9 @@ export function validateTables(tables: unknown): string[] {
   return errors;
 }
 
-/** Dados salvos antes da mudança para mesas configuráveis (28 mesas de 10, sem "seats"). */
-export function isLegacyLayout(tables: unknown): boolean {
-  return Array.isArray(tables) && tables.length > 0 && (tables as Partial<TableDef>[]).every((t) => t && t.seats === undefined);
+/** Layout salvo numa versão anterior do padrão (precisa de conversão). */
+export function needsLayoutUpgrade(layout: { tables?: unknown; version?: number } | undefined): boolean {
+  return !!layout && Array.isArray(layout.tables) && layout.tables.length > 0 && (layout.version ?? 0) < LAYOUT_VERSION;
 }
 
 /** Normaliza: mesas sem "seats" recebem 10 (formato antigo). Layout inválido volta ao padrão. */
@@ -40,15 +40,18 @@ export function sanitizeTables(tables: TableDef[] | undefined): TableDef[] {
 }
 
 /**
- * Converte um layout antigo (28 × 10) para o novo padrão (35 × 8), mantendo a
- * posição e o formato que o usuário já tinha nas mesas 1–28.
+ * Converte um layout de versão anterior para o padrão atual (29 mesas de 10):
+ * mantém posição, formato e rotação que o usuário já tinha nas mesas 1–29,
+ * remove as mesas 30–35 do layout de 35 e preserva mesas criadas pelo usuário (36+).
  */
 export function upgradeLayout(old: TableDef[]): TableDef[] {
   const byNum = new Map(old.map((t) => [t.number, t]));
-  return defaultTables().map((d) => {
+  const base = defaultTables().map((d) => {
     const o = byNum.get(d.number);
-    return o ? { ...d, x: o.x, y: o.y, shape: o.shape, seatRotation: o.seatRotation ?? 0, seats: DEFAULT_SEATS } : d;
+    return o ? { ...d, x: o.x, y: o.y, seatRotation: o.seatRotation ?? 0, seats: DEFAULT_SEATS } : d;
   });
+  const custom = old.filter((t) => t.number > 35).map((t) => ({ ...t, seats: Number.isInteger(t.seats) ? t.seats : DEFAULT_SEATS }));
+  return [...base, ...custom].sort((a, b) => a.number - b.number);
 }
 
 export function newTable(tables: TableDef[], shape: TableDef['shape']): TableDef {
@@ -66,7 +69,7 @@ export const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
  *  - Mesa retangular: metade dos lugares (menos as cabeceiras) no lado de cima,
  *    da esquerda para a direita; um lugar na cabeceira direita; o restante embaixo,
  *    da direita para a esquerda; e o último na cabeceira esquerda.
- *    Com 8 lugares: 1–3 em cima, 4 à direita, 5–7 embaixo e 8 à esquerda.
+ *    Com 10 lugares: 1–4 em cima, 5 à direita, 6–9 embaixo e 10 à esquerda.
  *  - "seatRotation" gira apenas a numeração/cadeiras, nunca a posição da mesa.
  */
 export function seatOffsets(shape: TableDef['shape'], rotationDeg: number, ringRadius: number, rectW: number, rectH: number, count = DEFAULT_SEATS) {

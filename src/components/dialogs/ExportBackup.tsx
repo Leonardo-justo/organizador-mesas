@@ -77,7 +77,6 @@ export function BackupDialog() {
       onConfirm: () => {
         replaceAll(r.snapshot, 'Restaurar backup');
         toast('ok', `Backup restaurado: ${r.summary}.`, true);
-        if (r.legacy) useApp.setState({ pendingUpgrade: true }); // backup no formato antigo: oferece a conversão
       },
     });
   };

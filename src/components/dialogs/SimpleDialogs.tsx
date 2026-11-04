@@ -283,35 +283,36 @@ export function SwapTableDialog({ table }: { table: number }) {
   );
 }
 
-/** Conversão dos dados antigos (28 mesas de 10) para o novo salão (35 mesas de 8). */
+/** Conversão do layout salvo para o padrão atual (29 mesas de 10 lugares). */
 export function UpgradeDialog() {
   const pending = useApp((s) => s.pendingUpgrade);
   const apply = useApp((s) => s.applyUpgrade);
   const seated = useApp((s) => Object.keys(s.seating.assignments).length);
-  const extra = useApp((s) => Object.keys(s.seating.assignments).filter((k) => Number(k.split('-')[1]) > 8).length);
+  const lose = useApp((s) => Object.keys(s.seating.assignments).filter((k) => {
+    const [t] = k.split('-').map(Number);
+    return t >= 30 && t <= 35;
+  }).length);
   if (!pending) return null;
   return (
     <Modal
-      title="Novo salão: 35 mesas de 8 lugares"
-      subtitle="Agora são 32 mesas redondas e 3 retangulares (11, 25 e a nova 29), com 8 lugares cada — 280 lugares no total."
+      title="Salão atualizado: 29 mesas de 10 lugares"
+      subtitle="26 mesas redondas da planta e 3 retangulares (11, 25 e 29), todas com 10 lugares — 290 lugares no total. As mesas 30 a 35 deixam de existir."
       onClose={() => apply('depois')}
       wide
-      footer={<button className="btn" onClick={() => apply('depois')}>Agora não (manter 28 mesas de 10)</button>}
+      footer={<button className="btn" onClick={() => apply('depois')}>Agora não (manter as mesas atuais)</button>}
     >
-      <p style={{ margin: 0 }}>
-        Você tem {seated} convidado(s) sentados no formato antigo. Como quer adaptar a distribuição?
-      </p>
+      <p style={{ margin: 0 }}>Você tem {seated} convidado(s) sentados. Como quer adaptar a distribuição?</p>
       <div className="opcoes">
         <button className="opcao" style={{ textAlign: 'left', background: 'none' }} onClick={() => apply('redistribuir')} data-testid="upgrade-redistribuir">
           <span><b>Redistribuir todos na mesma ordem (recomendado)</b>
-            <small>Mantém a sequência mesa por mesa e preenche 8 por mesa, usando também as mesas novas (29 a 35). Ninguém fica sem lugar.</small></span>
+            <small>Mantém a sequência mesa por mesa e preenche 10 por mesa. Ninguém fica sem lugar.</small></span>
         </button>
         <button className="opcao" style={{ textAlign: 'left', background: 'none' }} onClick={() => apply('manter')} data-testid="upgrade-manter">
-          <span><b>Manter os lugares 1 a 8 de cada mesa</b>
-            <small>Quem já está nos lugares 1–8 não muda; {extra} convidado(s) dos lugares 9 e 10 voltam para a lista para você distribuir nas mesas novas.</small></span>
+          <span><b>Manter cada um no lugar onde está</b>
+            <small>Quem está nas mesas 1 a 29 não muda; {lose} convidado(s) das mesas 30 a 35 voltam para a lista.</small></span>
         </button>
       </div>
-      <p className="nota" style={{ margin: 0 }}>Nenhum cadastro é excluído. As mesas 1–28 continuam onde estão; as novas aparecem em áreas livres e podem ser movidas em “Mover mesas”.</p>
+      <p className="nota" style={{ margin: 0 }}>Nenhum cadastro é excluído. As posições que você já ajustou nas mesas 1 a 29 são mantidas.</p>
     </Modal>
   );
 }

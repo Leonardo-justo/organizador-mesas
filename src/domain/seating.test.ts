@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_SEATS, defaultTables } from '../data/floorplan';
 import { createGuest } from './guests';
 import * as S from './seating';
+import { upgradeLayout } from './layout';
 import type { SeatingState } from './types';
 
 function stateWith(names: string[]): { state: SeatingState; ids: string[] } {
@@ -11,23 +12,23 @@ function stateWith(names: string[]): { state: SeatingState; ids: string[] } {
 const ok = (r: S.OpResult) => { if (!r.ok) throw new Error(r.reason); return r.state; };
 
 describe('mesas e assentos', () => {
-  it('layout padrão: 35 mesas numeradas de 1 a 35, dentro da planta', () => {
+  it('layout padrão: 29 mesas numeradas de 1 a 29, dentro da planta', () => {
     const t = defaultTables();
-    expect(t).toHaveLength(35);
-    expect(S.tableNumbers()).toEqual(Array.from({ length: 35 }, (_, i) => i + 1));
+    expect(t).toHaveLength(29);
+    expect(S.tableNumbers()).toEqual(Array.from({ length: 29 }, (_, i) => i + 1));
     t.forEach((m) => { expect(m.x).toBeGreaterThan(0); expect(m.x).toBeLessThan(1); expect(m.y).toBeGreaterThan(0); expect(m.y).toBeLessThan(1); });
   });
-  it('8 lugares por mesa e capacidade total de 280', () => {
-    expect(DEFAULT_SEATS).toBe(8);
-    expect(S.seatNumbers(1)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
-    expect(S.allSeatKeys()).toHaveLength(280);
-    expect(new Set(S.allSeatKeys()).size).toBe(280);
-    expect(S.totalCapacity()).toBe(280);
+  it('10 lugares por mesa e capacidade total de 290', () => {
+    expect(DEFAULT_SEATS).toBe(10);
+    expect(S.seatNumbers(1)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(S.allSeatKeys()).toHaveLength(290);
+    expect(new Set(S.allSeatKeys()).size).toBe(290);
+    expect(S.totalCapacity()).toBe(290);
   });
-  it('3 mesas retangulares (11, 25 e 29) e 32 redondas', () => {
+  it('3 mesas retangulares (11, 25 e 29) e 26 redondas', () => {
     const t = defaultTables();
     expect(t.filter((x) => x.shape === 'rect').map((x) => x.number)).toEqual([11, 25, 29]);
-    expect(t.filter((x) => x.shape === 'round')).toHaveLength(32);
+    expect(t.filter((x) => x.shape === 'round')).toHaveLength(26);
   });
   it('mesas com quantidades diferentes de lugares', () => {
     S.withTableSpec([{ number: 1, seats: 8 }, { number: 7, seats: 12 }], () => {
@@ -37,7 +38,7 @@ describe('mesas e assentos', () => {
       expect(S.isValidSeat(2, 1)).toBe(false);
       expect(S.totalCapacity()).toBe(20);
     });
-    expect(S.totalCapacity()).toBe(280);
+    expect(S.totalCapacity()).toBe(290);
   });
 });
 
@@ -110,26 +111,26 @@ describe('distribuição', () => {
     expect(s.assignments).toEqual({});
     expect(s.guests).toEqual({});
   });
-  it('mesa não ultrapassa 8 convidados', () => {
-    const { state, ids } = stateWith(Array.from({ length: 9 }, (_, i) => `Pessoa ${i + 1}`));
+  it('mesa não ultrapassa 10 convidados', () => {
+    const { state, ids } = stateWith(Array.from({ length: 11 }, (_, i) => `Pessoa ${i + 1}`));
     let s = state;
-    for (let i = 0; i < 8; i++) s = ok(S.placeInTable(s, ids[i], 7));
+    for (let i = 0; i < 10; i++) s = ok(S.placeInTable(s, ids[i], 7));
     expect(S.tableStatus(s.assignments, 7)).toBe('completa');
-    const r = S.placeInTable(s, ids[8], 7);
+    const r = S.placeInTable(s, ids[10], 7);
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.code).toBe('table-full');
   });
   it('distribuição em lote é tudo ou nada', () => {
-    const { state, ids } = stateWith(Array.from({ length: 10 }, (_, i) => `Pessoa ${i + 1}`));
+    const { state, ids } = stateWith(Array.from({ length: 12 }, (_, i) => `Pessoa ${i + 1}`));
     const r = S.placeManyInTable(state, ids, 2);
     expect(r.ok).toBe(false);
-    const s = ok(S.placeManyInTable(state, ids.slice(0, 8), 2));
-    expect(S.tableOccupancy(s.assignments, 2)).toBe(8);
+    const s = ok(S.placeManyInTable(state, ids.slice(0, 10), 2));
+    expect(S.tableOccupancy(s.assignments, 2)).toBe(10);
   });
   it('rejeita assento inválido', () => {
     const { state, ids } = stateWith(['Ana']);
-    expect(S.placeGuest(state, ids[0], { table: 36, seat: 1 }).ok).toBe(false);
-    expect(S.placeGuest(state, ids[0], { table: 1, seat: 9 }).ok).toBe(false);
+    expect(S.placeGuest(state, ids[0], { table: 30, seat: 1 }).ok).toBe(false);
+    expect(S.placeGuest(state, ids[0], { table: 1, seat: 11 }).ok).toBe(false);
   });
   it('validateState detecta convidado em dois assentos', () => {
     const { state, ids } = stateWith(['Ana']);
@@ -173,19 +174,19 @@ describe('trocar mesa inteira', () => {
 
 describe('distribuição em sequência', () => {
   it('preenche na ordem, pula mesa lotada e respeita quem já está sentado', () => {
-    const { state, ids } = stateWith(Array.from({ length: 12 }, (_, i) => `Pessoa ${i}`));
-    let s = ok(S.placeGuest(state, ids[11], { table: 1, seat: 3 }));
+    const { state, ids } = stateWith(Array.from({ length: 14 }, (_, i) => `Pessoa ${i}`));
+    let s = ok(S.placeGuest(state, ids[13], { table: 1, seat: 3 }));
     s = ok(S.placeSequential(s, ids, 1));
     expect(s.assignments['1-1']).toBe(ids[0]);
-    expect(s.assignments['1-3']).toBe(ids[11]);
+    expect(s.assignments['1-3']).toBe(ids[13]);
     expect(s.assignments['1-4']).toBe(ids[2]);
-    expect(s.assignments['2-1']).toBe(ids[7]);
+    expect(s.assignments['2-1']).toBe(ids[9]);
     expect(S.tableOccupancy(s.assignments, 2)).toBe(4);
   });
   it('começa na mesa escolhida e volta ao início depois da última', () => {
-    const { state, ids } = stateWith(Array.from({ length: 10 }, (_, i) => `P ${i}`));
-    const s = ok(S.placeSequential(state, ids, 35));
-    expect(S.tableOccupancy(s.assignments, 35)).toBe(8);
+    const { state, ids } = stateWith(Array.from({ length: 12 }, (_, i) => `P ${i}`));
+    const s = ok(S.placeSequential(state, ids, 29));
+    expect(S.tableOccupancy(s.assignments, 29)).toBe(10);
     expect(S.tableOccupancy(s.assignments, 1)).toBe(2);
   });
   it('tirar todos das mesas mantém os cadastros', () => {
@@ -197,33 +198,41 @@ describe('distribuição em sequência', () => {
   });
 });
 
-describe('mudança de layout (28 × 10 → 35 × 8)', () => {
-  const legacy = Array.from({ length: 28 }, (_, i) => ({ number: i + 1, seats: 10 }));
-  function legacyState(n: number) {
+describe('conversão de layouts antigos para 29 mesas de 10', () => {
+  function stateFrom(n: number, perTable: number) {
     const { state, ids } = stateWith(Array.from({ length: n }, (_, i) => `C${i}`));
     const assignments: Record<string, string> = {};
-    ids.forEach((id, i) => { assignments[`${Math.floor(i / 10) + 1}-${(i % 10) + 1}`] = id; });
+    ids.forEach((id, i) => { assignments[`${Math.floor(i / perTable) + 1}-${(i % perTable) + 1}`] = id; });
     return { state: { ...state, assignments }, ids };
   }
-  it('redistribuir mantém a ordem e não deixa ninguém sem lugar', () => {
-    const { state, ids } = legacyState(263);
-    S.withTableSpec(legacy, () => expect(S.validateState(state)).toEqual([]));
-    const r = S.adaptSeatingToTables(state, defaultTables(), 'redistribuir');
-    expect(r.moved).toBe(263);
+  it('28 × 10 (inicial): ninguém muda de lugar', () => {
+    const old = defaultTables().filter((t) => t.number <= 28).map((t) => ({ ...t, seats: 10 }));
+    const up = upgradeLayout(old);
+    expect(up).toHaveLength(29);
+    const { state, ids } = stateFrom(263, 10);
+    const r = S.adaptSeatingToTables(state, up, 'manter');
     expect(r.unseated).toBe(0);
-    expect(r.state.assignments['1-1']).toBe(ids[0]);
-    expect(r.state.assignments['1-8']).toBe(ids[7]);
-    expect(r.state.assignments['2-1']).toBe(ids[8]);
+    expect(r.state.assignments['27-3']).toBe(ids[262]);
+  });
+  it('35 × 8: manter devolve só quem estava nas mesas 30–35; redistribuir recoloca todos em ordem', () => {
+    const old = [...defaultTables().map((t) => ({ ...t, seats: 8 })), ...[30, 31, 32, 33, 34, 35].map((n) => ({ number: n, shape: 'round' as const, x: 0.5, y: 0.9, seatRotation: 0, seats: 8 }))];
+    const up = upgradeLayout(old);
+    expect(up.map((t) => t.number)).toEqual(Array.from({ length: 29 }, (_, i) => i + 1));
+    expect(up.every((t) => t.seats === 10)).toBe(true);
+    const { state, ids } = stateFrom(263, 8); // ocupa as mesas 1–33
+    const m = S.adaptSeatingToTables(state, up, 'manter');
+    expect(m.unseated).toBe(263 - 29 * 8);
+    expect(Object.keys(m.state.guests)).toHaveLength(263);
+    const r = S.adaptSeatingToTables(state, up, 'redistribuir');
+    expect(r.unseated).toBe(0);
+    expect(r.state.assignments['1-10']).toBe(ids[9]);
+    expect(r.state.assignments['2-1']).toBe(ids[10]);
     expect(S.validateState(r.state)).toEqual([]);
   });
-  it('manter devolve os lugares 9 e 10 para a lista sem excluir cadastros', () => {
-    const { state, ids } = legacyState(20);
-    const r = S.adaptSeatingToTables(state, defaultTables(), 'manter');
-    expect(r.kept).toBe(16);
-    expect(r.unseated).toBe(4);
-    expect(r.state.assignments['1-1']).toBe(ids[0]);
-    expect(r.state.assignments['1-9']).toBeUndefined();
-    expect(Object.keys(r.state.guests)).toHaveLength(20);
+  it('mesas criadas pelo usuário (36+) são preservadas', () => {
+    const old = [...defaultTables(), { number: 36, shape: 'rect' as const, x: 0.1, y: 0.1, seatRotation: 0, seats: 12 }];
+    const up = upgradeLayout(old);
+    expect(up.find((t) => t.number === 36)?.seats).toBe(12);
   });
   it('trocar mesa inteira recusa quando a outra mesa tem menos lugares', () => {
     S.withTableSpec([{ number: 1, seats: 8 }, { number: 2, seats: 6 }], () => {

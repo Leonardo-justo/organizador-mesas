@@ -50,6 +50,8 @@ export interface ViewPrefs {
 
 export interface Layout {
   tables: TableDef[];
+  /** Versão do layout padrão em que estas mesas foram criadas (ver LAYOUT_VERSION). */
+  version?: number;
   /** Imagem de planta personalizada (data URL). Vazio = planta original do projeto. */
   customPlan?: string;
 }
