@@ -22,7 +22,7 @@ export function ImportDialog() {
   const [hasHeader, setHasHeader] = useState(true);
   const [mapping, setMapping] = useState<ColumnMapping | null>(null);
   const [mode, setMode] = useState<'adicionar' | 'substituir'>('adicionar');
-  const [seatMode, setSeatMode] = useState<'lista' | 'sequencia'>('lista');
+  const [seatMode, setSeatMode] = useState<'lista' | 'sequencia' | 'planilha'>('lista');
   const [replaceOk, setReplaceOk] = useState(false);
   const [overrides, setOverrides] = useState<Record<number, boolean>>({});
   const [error, setError] = useState('');
@@ -45,7 +45,9 @@ export function ImportDialog() {
       const data = await readSpreadsheet(f);
       if (!data.length) throw new Error('O arquivo está vazio.');
       const header = detectHeader(data);
-      setRows(data); setHasHeader(header); setMapping(detectMapping(data, header)); setFileName(f.name); setOverrides({});
+      const m = detectMapping(data, header);
+      setRows(data); setHasHeader(header); setMapping(m); setFileName(f.name); setOverrides({});
+      setSeatMode(m.table >= 0 ? 'planilha' : 'lista');
       setStep('colunas');
     } catch (e) {
       setError(`Não foi possível ler “${f.name}”: ${(e as Error).message}. Use .xlsx, .xls ou .csv.`);
@@ -59,7 +61,25 @@ export function ImportDialog() {
     const base = mode === 'substituir' ? { guests: {}, assignments: {} } : seating;
     let r = S.addGuests(base, guests);
     let seatedMsg = ' Todos ficaram na lista, sem mesa.';
-    if (r.ok && seatMode === 'sequencia') {
+    if (r.ok && seatMode === 'planilha') {
+      // cada convidado na mesa indicada na planilha; quem "não vai" fica na lista
+      const items = included.filter((x) => x.table && x.guest.rsvp !== 'recusado').map((x) => ({ id: x.guest.id, table: x.table! }));
+      const declinedWithTable = included.filter((x) => x.table && x.guest.rsvp === 'recusado').length;
+      const res = S.placeByTable(r.state, items);
+      if (res.ok) {
+        const st = res.state;
+        r = { ok: true, state: st };
+        const full = res.issues.filter((i) => i.reason === 'mesa-lotada');
+        const missing = res.issues.filter((i) => i.reason === 'mesa-inexistente');
+        const nameOf = (id: string) => st.guests[id]?.fullName ?? '';
+        seatedMsg = ` ${res.placed} convidado(s) colocados nas mesas indicadas na planilha; ${guests.length - res.placed} ficaram na lista sem mesa.` +
+          (declinedWithTable ? ` ${declinedWithTable} marcado(s) como "não vai" tinham mesa e ficaram fora.` : '') +
+          (full.length ? ` Mesa lotada para: ${full.map((i) => `${nameOf(i.id)} (mesa ${i.table})`).join(', ')}.` : '') +
+          (missing.length ? ` Mesa inexistente para: ${missing.map((i) => `${nameOf(i.id)} (mesa ${i.table})`).join(', ')}.` : '');
+      } else {
+        r = res;
+      }
+    } else if (r.ok && seatMode === 'sequencia') {
       const confirmed = guests.filter((g) => g.rsvp === 'confirmado').map((g) => g.id);
       const seq = confirmed.length ? S.placeSequential(r.state, confirmed, 1) : null;
       if (seq?.ok) {
@@ -142,7 +162,7 @@ export function ImportDialog() {
           <div className="aviso ok" data-testid="resumo-importacao">
             <b>{included.length}</b> convidado(s) serão adicionados.
             {preview.emptyLines.length > 0 && ` ${preview.emptyLines.length} linha(s) vazia(s) serão ignoradas.`}
-            {preview.rows.some((r) => r.duplicateOf) && ` ${preview.rows.filter((r) => r.duplicateOf).length} possível(is) duplicata(s) estão desmarcadas — marque se forem pessoas diferentes.`}
+            {preview.rows.some((r) => r.duplicateOf) && ` ${preview.rows.filter((r) => r.duplicateOf).length} nome(s) parecido(s) ou repetido(s) — confira na tabela (só ficam desmarcados os que já existem com o mesmo nome).`}
           </div>
           {preview.errorLines.length > 0 && (
             <div className="aviso erro">
@@ -155,7 +175,7 @@ export function ImportDialog() {
           <div className="tabela-wrap">
             <table className="tabela">
               <thead>
-                <tr><th>Importar</th><th>Linha</th><th>Nome</th><th>Família/grupo</th><th>Acompanhante</th><th>Presença</th><th>Observação</th><th>Aviso</th></tr>
+                <tr><th>Importar</th><th>Linha</th><th>Nome</th><th>Família/grupo</th><th>Acompanhante</th><th>Presença</th><th>Mesa</th><th>Observação</th><th>Aviso</th></tr>
               </thead>
               <tbody>
                 {preview.rows.slice(0, 400).map((r) => {
@@ -168,6 +188,7 @@ export function ImportDialog() {
                       <td>{r.guest.group ?? ''}</td>
                       <td>{r.guest.companion ?? ''}</td>
                       <td>{RSVP_LABEL[r.guest.rsvp]}</td>
+                      <td>{r.table ?? ''}</td>
                       <td>{r.guest.notes ?? ''}</td>
                       <td>{r.issues.join('; ')}</td>
                     </tr>
@@ -189,6 +210,12 @@ export function ImportDialog() {
             </label>
           </div>
           <div className="opcoes" role="radiogroup" aria-label="Mesas depois de importar">
+            {mapping.table >= 0 && (
+              <label className="opcao">
+                <input type="radio" name="mesas" checked={seatMode === 'planilha'} onChange={() => setSeatMode('planilha')} data-testid="importar-pela-mesa" />
+                <span><b>Colocar cada um na mesa indicada na planilha</b><small>Usa a coluna “{colName(mapping.table)}”. Quem não tem mesa (ou “não vai”) fica na lista; se a mesa lotar, o excedente também fica na lista.</small></span>
+              </label>
+            )}
             <label className="opcao">
               <input type="radio" name="mesas" checked={seatMode === 'lista'} onChange={() => setSeatMode('lista')} data-testid="importar-sem-mesa" />
               <span><b>Só adicionar à lista, sem colocar nas mesas</b><small>Você distribui depois, arrastando ou pela tela “Mesas em lista”.</small></span>

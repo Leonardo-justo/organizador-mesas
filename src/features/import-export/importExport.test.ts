@@ -33,7 +33,8 @@ describe('importação CSV', () => {
     expect(p.rows[1].duplicateOf).toBe('Jose Antonio');
     expect(p.rows[1].include).toBe(false);
     expect(p.rows[4].duplicateOf).toBe('Ana Júlia Souza');
-    expect(p.rows.filter((r) => r.include)).toHaveLength(3);
+    expect(p.rows[4].include).toBe(true); // repetido na planilha: só aviso
+    expect(p.rows.filter((r) => r.include)).toHaveLength(4);
   });
   it('lê arquivo .csv via File com UTF-8', async () => {
     const f = new File([CSV], 'convidados.csv', { type: 'text/csv' });
@@ -77,5 +78,28 @@ describe('ordem da planilha', () => {
     const p = buildPreview(rows, detectMapping(rows, true), true, []);
     const sorted = [...p.rows].map((r) => r.guest).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     expect(sorted.map((g) => g.fullName)).toEqual(['Zélia', 'Ana', 'Márcio']);
+  });
+});
+
+describe('planilha com título acima e coluna de mesa', () => {
+  it('acha o cabeçalho, a coluna "NUM MESA" e o status "OK (Confirmado)"', async () => {
+    const XLSX = await import('xlsx');
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      ['LISTA DE CASAMENTO'], ['Total: 3'], [],
+      ['Nº', 'Nome do Convidado / Descrição', 'NUM MESA', 'ADULTO/CRIANÇA', 'Telefone', 'Status', 'Observações e Pendências'],
+      [1, 'Patrícia Rocha', 15, 'ADULTO', '-', 'OK (Confirmado)', '-'],
+      [2, 'Renato Rocha', '', 'ADULTO', '-', 'A Confirmar', ''],
+      [3, 'Renato Rocha', 2, 'ADULTO', '-', 'Não vai', ''],
+    ]), 'Lista');
+    const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
+    const rows = await readSpreadsheet(new File([buf], 'lista.xlsx'));
+    expect(rows[0][1]).toBe('Nome do Convidado / Descrição');
+    const m = detectMapping(rows, detectHeader(rows));
+    expect(m).toMatchObject({ fullName: 1, table: 2, rsvp: 5, notes: 6 });
+    const p = buildPreview(rows, m, true, []);
+    expect(p.rows.map((r) => [r.guest.rsvp, r.table ?? null, r.include])).toEqual([
+      ['confirmado', 15, true], ['pendente', null, true], ['recusado', 2, true],
+    ]);
   });
 });

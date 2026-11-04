@@ -2,7 +2,7 @@ import { areNamesSimilar, cleanText, createGuest, normalizeName, parseRsvp } fro
 import type { Guest } from '../../domain/types';
 import { decodeText, parseCsv } from './csv';
 
-export type FieldKey = 'fullName' | 'displayName' | 'group' | 'companion' | 'rsvp' | 'notes';
+export type FieldKey = 'fullName' | 'displayName' | 'group' | 'companion' | 'rsvp' | 'notes' | 'table';
 
 export const FIELD_LABELS: Record<FieldKey, string> = {
   fullName: 'Nome completo (obrigatório)',
@@ -11,6 +11,7 @@ export const FIELD_LABELS: Record<FieldKey, string> = {
   companion: 'Acompanhante / vínculo',
   rsvp: 'Confirmação de presença',
   notes: 'Observações',
+  table: 'Número da mesa',
 };
 
 export type ColumnMapping = Record<FieldKey, number>; // -1 = não importar
@@ -22,6 +23,7 @@ const PATTERNS: Record<FieldKey, RegExp> = {
   companion: /(acompanh|vinculo|conjuge|par|plus ?one|companion)/,
   rsvp: /(presen|confirm|rsvp|status|vai)/,
   notes: /(obs|nota|coment|restri|notes?)/,
+  table: /(^|\s)(mesa|table)(\s|$)|num(ero)? (da )?mesa/,
 };
 
 export function fileToArrayBuffer(file: Blob): Promise<ArrayBuffer> {
@@ -49,9 +51,24 @@ export async function readSpreadsheet(file: File): Promise<string[][]> {
 }
 
 function trimRows(rows: string[][]): string[][] {
-  const out = rows.map((r) => r.map((c) => cleanText(c)));
+  let out = rows.map((r) => r.map((c) => cleanText(c)));
   while (out.length && out[out.length - 1].every((c) => !c)) out.pop();
+  // Planilhas com título acima da tabela: começa na linha do cabeçalho
+  const h = findHeaderRow(out);
+  if (h > 0) out = out.slice(h);
   return out;
+}
+
+const headerScore = (r: string[]) =>
+  r.filter((c) => c && Object.values(PATTERNS).some((p) => p.test(normalizeName(c)))).length +
+  (r.some((c) => /nome|name/.test(normalizeName(c))) ? 1 : 0);
+
+/** Primeira linha (entre as 15 primeiras) que parece um cabeçalho: tem "nome" e outra coluna conhecida. */
+export function findHeaderRow(rows: string[][]): number {
+  for (let i = 0; i < Math.min(rows.length, 15); i++) {
+    if (headerScore(rows[i]) >= 3 && rows[i].some((c) => /nome|name|convidad/.test(normalizeName(c)))) return i;
+  }
+  return 0;
 }
 
 export function detectHeader(rows: string[][]): boolean {
@@ -61,7 +78,7 @@ export function detectHeader(rows: string[][]): boolean {
 }
 
 export function detectMapping(rows: string[][], hasHeader: boolean): ColumnMapping {
-  const mapping: ColumnMapping = { fullName: -1, displayName: -1, group: -1, companion: -1, rsvp: -1, notes: -1 };
+  const mapping: ColumnMapping = { fullName: -1, displayName: -1, group: -1, companion: -1, rsvp: -1, notes: -1, table: -1 };
   const width = Math.max(0, ...rows.map((r) => r.length));
   if (hasHeader && rows[0]) {
     const used = new Set<number>();
@@ -93,6 +110,8 @@ export interface PreviewRow {
   issues: string[];
   duplicateOf?: string; // nome existente parecido
   include: boolean;
+  /** Mesa indicada na planilha (se houver). */
+  table?: number;
 }
 
 export interface ImportPreview {
@@ -136,8 +155,13 @@ export function buildPreview(rows: string[][], mapping: ColumnMapping, hasHeader
       issues.push(`Repetido na planilha: ${dupFile.fullName}`);
     }
     seenInFile.push(guest);
-    // Possíveis duplicatas vêm desmarcadas, mas podem ser incluídas (pessoas podem ter o mesmo nome).
-    preview.rows.push({ line, guest, issues, duplicateOf, include: !duplicateOf });
+    const rawTable = get(r, 'table').replace(',', '.');
+    const tableNum = rawTable ? Number(rawTable) : NaN;
+    const table = Number.isFinite(tableNum) && Number.isInteger(tableNum) && tableNum > 0 ? tableNum : undefined;
+    // Só vem desmarcado quem tem exatamente o mesmo nome de um convidado JÁ cadastrado.
+    // Nomes parecidos e repetidos dentro da planilha só geram aviso (podem ser pessoas diferentes).
+    const exactExisting = !!dupExisting && normalizeName(dupExisting.fullName) === normalizeName(fullName);
+    preview.rows.push({ line, guest, issues, duplicateOf, include: !exactExisting, table });
   }
   return preview;
 }

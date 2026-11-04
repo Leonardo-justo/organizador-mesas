@@ -17,6 +17,9 @@ describe('nomes', () => {
     expect(parseRsvp('Não')).toBe('recusado');
     expect(parseRsvp('')).toBe('pendente');
     expect(parseRsvp('talvez')).toBe('pendente');
+    expect(parseRsvp('OK (Confirmado)')).toBe('confirmado');
+    expect(parseRsvp('A Confirmar')).toBe('pendente');
+    expect(parseRsvp('Não vai')).toBe('recusado');
   });
 });
 

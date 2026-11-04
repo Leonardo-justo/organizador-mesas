@@ -29,9 +29,9 @@ function offerSeed() {
   };
   confirmAction({
     title: 'Carregar a lista do casamento?',
-    body: `Esta versão do organizador traz ${parsed.summary}. Você pode carregar já com os confirmados nas mesas (na ordem da planilha) ou só a lista, com todos sem mesa.` +
+    body: `Esta versão do organizador traz ${parsed.summary}. Você pode carregar já com cada convidado na mesa indicada na planilha ou só a lista, com todos sem mesa.` +
       (current ? ` Os ${current} convidados que estão aqui agora serão substituídos (dá para desfazer logo em seguida).` : ''),
-    confirmLabel: 'Carregar já nas mesas',
+    confirmLabel: 'Carregar com as mesas da planilha',
     onConfirm: () => load(true),
     secondaryLabel: 'Carregar só a lista (sem mesa)',
     onSecondary: () => load(false),

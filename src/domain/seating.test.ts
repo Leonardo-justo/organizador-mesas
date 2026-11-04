@@ -242,3 +242,22 @@ describe('conversão de layouts antigos para 29 mesas de 10', () => {
     });
   });
 });
+
+describe('colocar pela mesa indicada na planilha', () => {
+  it('coloca na mesa certa, em ordem, e relata mesa lotada ou inexistente', () => {
+    const { state, ids } = stateWith(Array.from({ length: 13 }, (_, i) => `P${i}`));
+    const items = [
+      ...ids.slice(0, 11).map((id) => ({ id, table: 15 })),
+      { id: ids[11], table: 99 },
+      { id: ids[12], table: 2 },
+    ];
+    const r = S.placeByTable(state, items);
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.placed).toBe(11);
+    expect(r.state.assignments['15-1']).toBe(ids[0]);
+    expect(r.state.assignments['15-10']).toBe(ids[9]);
+    expect(r.state.assignments['2-1']).toBe(ids[12]);
+    expect(r.issues).toEqual([{ id: ids[10], table: 15, reason: 'mesa-lotada' }, { id: ids[11], table: 99, reason: 'mesa-inexistente' }]);
+    expect(S.validateState(r.state)).toEqual([]);
+  });
+});

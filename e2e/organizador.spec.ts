@@ -380,6 +380,23 @@ test('dados do layout de 35 mesas de 8 são convertidos para 29 de 10', async ({
   await expect(page.locator('g[data-testid^=mesa-]')).toHaveCount(29);
 });
 
+test('importar planilha com coluna de mesa coloca cada um na sua mesa', async ({ page }) => {
+  await start(page);
+  await page.locator('.lateral').getByRole('button', { name: 'Importar', exact: true }).click();
+  await page.setInputFiles('[data-testid=arquivo-importacao]', path.resolve('exemplos/convidados-com-mesa.xlsx'));
+  await expect(page.getByTestId('resumo-importacao')).toContainText('9 convidado(s) serão adicionados');
+  await expect(page.getByTestId('importar-pela-mesa')).toBeChecked();
+  await page.getByTestId('confirmar-importacao').click();
+  await expect(page.getByTestId('resultado-importacao')).toContainText('6 convidado(s) colocados nas mesas indicadas');
+  await expect(page.getByTestId('resultado-importacao')).toContainText('1 marcado(s) como "não vai"');
+  await page.getByRole('button', { name: 'Concluir' }).click();
+  await expect(row(page, 'José Antônio')).toContainText('Mesa 15 · lugar 3');
+  await expect(row(page, 'Ana Júlia Souza')).toContainText('Mesa 2 · lugar 2');
+  await expect(row(page, 'Bruno Costa')).toContainText('Mesa 23 · lugar 1');
+  await expect(row(page, 'Pedro Alves')).toContainText('Sem lugar');
+  await expect(row(page, 'Carla Dias')).toContainText('Sem lugar');
+});
+
 test('busca localiza convidado; dados e calibração persistem após recarregar', async ({ page }) => {
   await start(page);
   await importSample(page);

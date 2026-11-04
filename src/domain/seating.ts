@@ -447,3 +447,31 @@ export function adaptSeatingToTables(
     return { state: r.state, kept: 0, moved: placed, unseated: entries.length - placed };
   });
 }
+
+export interface TablePlacementIssue { id: string; table: number; reason: 'mesa-inexistente' | 'mesa-lotada' }
+
+/**
+ * Coloca cada convidado na mesa indicada (na ordem dada, no próximo lugar livre da mesa).
+ * Mesa inexistente ou lotada: o convidado fica na lista e entra no relatório.
+ * Quem já está sentado em outra mesa é movido; quem já está na mesa indicada não muda.
+ */
+export function placeByTable(state: SeatingState, items: Array<{ id: string; table: number }>):
+  { ok: true; state: SeatingState; placed: number; issues: TablePlacementIssue[] } | { ok: false; code: OpErrorCode; reason: string } {
+  let assignments: Assignments = { ...state.assignments };
+  const issues: TablePlacementIssue[] = [];
+  let placed = 0;
+  for (const { id, table } of items) {
+    if (!state.guests[id]) continue;
+    const cur = Object.entries(assignments).find(([, v]) => v === id)?.[0];
+    if (cur && parseSeatKey(cur)?.table === table) { placed++; continue; }
+    if (!SPEC.seats.has(table)) { issues.push({ id, table, reason: 'mesa-inexistente' }); continue; }
+    const free = freeSeats(assignments, table);
+    if (!free.length) { issues.push({ id, table, reason: 'mesa-lotada' }); continue; }
+    assignments = withoutGuest(assignments, id);
+    assignments[seatKey(table, free[0])] = id;
+    placed++;
+  }
+  const r = commit({ ...state, assignments });
+  if (!r.ok) return r;
+  return { ok: true, state: r.state, placed, issues };
+}

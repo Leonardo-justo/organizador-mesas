@@ -60,6 +60,7 @@ export function parseRsvp(v: unknown): Rsvp {
   if (/^(sim|s|confirmad[oa]s?|confirmou|ok|x|yes|y|vai|vou|presente|1|true)$/.test(s)) return 'confirmado';
   if (/^(nao|n|nao vai|nao ira|nao comparecera|recusou|recusad[oa]|no|ausente|0|false|declinou)$/.test(s)) return 'recusado';
   if (s.startsWith('confirm')) return 'confirmado';
+  if (/\bconfirmad[oa]s?\b/.test(s) && !/\bnao\b/.test(s)) return 'confirmado'; // ex.: "OK (Confirmado)"
   if (s.startsWith('nao')) return 'recusado';
   return 'pendente';
 }
