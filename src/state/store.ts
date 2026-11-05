@@ -6,6 +6,7 @@ import { SPACING_ON, needsLayoutUpgrade, newTable, renumberTable, sanitizeTables
 import * as S from '../domain/seating';
 import type { Guest, Layout, SeatRef, SeatingState, TableDef, ViewPrefs } from '../domain/types';
 import type { AppSnapshot } from '../features/backup/backup';
+import type { SourceSheet } from '../features/import-export/sourceSheet';
 
 export type SaveStatus = 'carregando' | 'pendente' | 'salvando' | 'salvo' | 'erro';
 export type TableFilter = 'todas' | S.TableStatus;
@@ -38,6 +39,8 @@ export interface AppState {
   history: History;
   layout: Layout;
   prefs: ViewPrefs;
+  /** Última planilha importada (para exportar como entrou). */
+  sourceSheet: SourceSheet | null;
 
   selectedTable: number | null;
   highlightGuestId: string | null;
@@ -93,6 +96,8 @@ export interface AppState {
   setDraftSeats: (n: number, seats: number) => void;
   applyUpgrade: (mode: 'manter' | 'redistribuir' | 'depois') => void;
   checkLayoutUpgrade: () => void;
+  setSourceSheet: (s: SourceSheet | null) => void;
+  addTableNow: (shape: TableDef['shape'], seats: number, goToMap?: boolean) => number | null;
   renumberTable: (from: number, to: number) => boolean;
   finishCalibration: (save: boolean) => void;
   setCustomPlan: (dataUrl: string | undefined) => void;
@@ -110,6 +115,7 @@ export const useApp = create<AppState>((set, get) => ({
   history: emptyHistory(),
   layout: { tables: defaultTables(), version: LAYOUT_VERSION },
   prefs: defaultPrefs(),
+  sourceSheet: null,
 
   selectedTable: null,
   highlightGuestId: null,
@@ -140,6 +146,7 @@ export const useApp = create<AppState>((set, get) => ({
       seating: valid ? seating : { guests: seating.guests ?? {}, assignments: {} },
       layout: { tables, customPlan: rawLayout?.customPlan, version: rawLayout ? rawLayout.version : LAYOUT_VERSION },
       prefs: { ...defaultPrefs(), ...(snap?.prefs ?? {}) },
+      sourceSheet: snap?.sourceSheet ?? null,
       history: emptyHistory(),
       saveStatus: 'salvo',
       lastSavedAt: savedAt ?? null,
@@ -155,6 +162,28 @@ export const useApp = create<AppState>((set, get) => ({
     const preview = S.adaptSeatingToTables(st.seating, upgradeLayout(st.layout.tables), 'manter');
     if (preview.unseated === 0) st.applyUpgrade('manter');
     else set({ pendingUpgrade: true });
+  },
+
+  setSourceSheet: (sheet) => set({ sourceSheet: sheet }),
+
+  /** Nova mesa: entra no modo "Mover mesas" já com ela criada e selecionada, para arrastar. */
+  addTableNow: (shape, seats, goToMap = true) => {
+    const st = get();
+    if (st.calibrating) { st.addDraftTable(shape); const n = get().selectedTable; if (n != null) get().setDraftSeats(n, seats); return n; }
+    // Adiciona e já salva; depois abre o modo "Mover mesas" para posicionar.
+    const t = { ...newTable(st.layout.tables, shape), seats: Math.min(16, Math.max(1, Math.round(seats))) };
+    const tables = sanitizeTables([...st.layout.tables, t]);
+    S.setTableSpec(tables);
+    if (!goToMap) {
+      set((x) => ({ layout: { ...x.layout, tables } }));
+      get().toast('ok', `Mesa ${t.number} (${t.seats} lugares) adicionada. Para posicioná-la na planta, use “Mover mesas” no mapa 2D.`);
+      return t.number;
+    }
+    set((x) => ({ layout: { ...x.layout, tables }, prefs: x.prefs.mode === '2d' ? x.prefs : { ...x.prefs, mode: '2d' } }));
+    get().startCalibration();
+    set({ selectedTable: t.number });
+    get().toast('ok', `Mesa ${t.number} (${t.seats} lugares) adicionada no canto superior esquerdo. Arraste para o lugar certo e clique em “Concluir e salvar”.`);
+    return t.number;
   },
 
   renumberTable: (from, to) => {
@@ -194,8 +223,8 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   snapshot: () => {
-    const { seating, layout, prefs } = get();
-    return { seating, layout, prefs };
+    const { seating, layout, prefs, sourceSheet } = get();
+    return { seating, layout, prefs, sourceSheet };
   },
 
   replaceAll: (snap, label) => {
@@ -206,6 +235,7 @@ export const useApp = create<AppState>((set, get) => ({
       seating: snap.seating,
       layout: snap.layout,
       prefs: snap.prefs,
+      sourceSheet: snap.sourceSheet ?? null,
       history: record(st.history, prev, label),
       selectedTable: null,
       highlightGuestId: null,

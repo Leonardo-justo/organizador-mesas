@@ -93,7 +93,7 @@ export async function initPersistence(): Promise<void> {
 
   useApp.subscribe((s, prev) => {
     if (!s.loaded) return;
-    if (s.seating !== prev.seating || s.layout !== prev.layout || s.prefs !== prev.prefs) schedule();
+    if (s.seating !== prev.seating || s.layout !== prev.layout || s.prefs !== prev.prefs || s.sourceSheet !== prev.sourceSheet) schedule();
   });
 
   const flushNow = () => { if (timer) { clearTimeout(timer); void flush(); } };

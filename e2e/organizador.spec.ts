@@ -294,7 +294,7 @@ test('importar já colocando os confirmados nas mesas', async ({ page }) => {
   await page.setInputFiles('[data-testid=arquivo-importacao]', SAMPLE);
   await page.getByTestId('importar-em-sequencia').check();
   await page.getByTestId('confirmar-importacao').click();
-  await expect(page.getByTestId('resultado-importacao')).toContainText('35 confirmado(s) colocados nas mesas');
+  await expect(page.getByTestId('resultado-importacao')).toContainText('35 confirmado(s) colocados nas mesas, em sequência');
   await page.getByRole('button', { name: 'Concluir' }).click();
   await expect(page.getByTestId('ind-distribuidos')).toHaveText('35');
   await expect(page.getByTestId('mesa-3')).toHaveAttribute('aria-label', /10 de 10/);
@@ -388,7 +388,7 @@ test('importar planilha com coluna de mesa coloca cada um na sua mesa', async ({
   await expect(page.getByTestId('importar-pela-mesa')).toBeChecked();
   await page.getByTestId('confirmar-importacao').click();
   await expect(page.getByTestId('resultado-importacao')).toContainText('6 convidado(s) colocados nas mesas indicadas');
-  await expect(page.getByTestId('resultado-importacao')).toContainText('1 marcado(s) como "não vai"');
+  await expect(page.getByTestId('resultado-importacao')).toContainText('1 marcado(s) como "não vai" não foram colocados');
   await page.getByRole('button', { name: 'Concluir' }).click();
   await expect(row(page, 'José Antônio')).toContainText('Mesa 15 · lugar 3');
   await expect(row(page, 'Ana Júlia Souza')).toContainText('Mesa 2 · lugar 2');
@@ -554,4 +554,73 @@ test('celular: lista vira gaveta e mover por toques funciona', async ({ browser 
   await expect(seat(page, 6, 2)).toContainText('Aline Almeida');
   await page.screenshot({ path: 'test-results/celular.png' });
   await ctx.close();
+});
+
+const csvBuf = (text: string) => Buffer.from('﻿' + text.replace(/\n/g, '\r\n'), 'utf-8');
+
+test('nova lista sem perder a distribuição e exportar a planilha como entrou', async ({ page }) => {
+  await start(page);
+  const lateral = page.locator('.lateral');
+  await lateral.getByRole('button', { name: 'Importar', exact: true }).click();
+  await page.setInputFiles('[data-testid=arquivo-importacao]', { name: 'lista.csv', mimeType: 'text/csv',
+    buffer: csvBuf('Lista do casamento;;\nNome;Presença;Mesa\nJoão Pereira;Confirmado;3\nMaria Souza;Confirmado;3\nAna Lima;A confirmar;\n') });
+  await page.getByTestId('confirmar-importacao').click();
+  await expect(page.getByTestId('resultado-importacao')).toContainText('2 convidado(s) colocados nas mesas indicadas');
+  await page.getByRole('button', { name: 'Concluir' }).click();
+  // muda o João de mesa à mão
+  await drag(page, row(page, 'João Pereira'), page.getByTestId('mesa-7'));
+  await expect(row(page, 'João Pereira')).toContainText('Mesa 7');
+
+  // nova versão da planilha: Ana confirmou, Carlos entrou
+  await lateral.getByRole('button', { name: 'Importar', exact: true }).click();
+  await page.setInputFiles('[data-testid=arquivo-importacao]', { name: 'lista-v2.csv', mimeType: 'text/csv',
+    buffer: csvBuf('Lista do casamento;;\nNome;Presença;Mesa\nJoão Pereira;Confirmado;3\nMaria Souza;Confirmado;3\nAna Lima;Confirmado;5\nCarlos Novo;Confirmado;5\n') });
+  await expect(page.getByTestId('modo-atualizar')).toBeChecked();
+  await page.getByTestId('confirmar-importacao').click();
+  await expect(page.getByTestId('resultado-importacao')).toContainText('3 convidado(s) atualizados');
+  await expect(page.getByTestId('resultado-importacao')).toContainText('1 novo(s) adicionados');
+  await page.getByRole('button', { name: 'Concluir' }).click();
+  await expect(page.getByTestId('ind-total')).toHaveText('4');
+  await expect(row(page, 'João Pereira')).toContainText('Mesa 7');
+  await expect(row(page, 'Ana Lima')).toContainText('Mesa 5');
+  await expect(row(page, 'Carlos Novo')).toContainText('Mesa 5');
+
+  await page.getByRole('button', { name: 'Exportar lista' }).click();
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.getByTestId('exportar-como-entrou').click()]);
+  expect(dl.suggestedFilename()).toBe('lista-v2_com_mesas.xlsx');
+  const XLSX = await import('xlsx');
+  const wb = XLSX.read(readFileSync((await dl.path())!));
+  const data: unknown[][] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
+  expect(data[0][0]).toBe('Lista do casamento');
+  expect(data[1]).toEqual(['Nome', 'Presença', 'Mesa']);
+  expect(data[2]).toEqual(['João Pereira', 'Confirmado', 7]);
+  expect(data[4]).toEqual(['Ana Lima', 'Confirmado', 5]);
+  expect(data).toHaveLength(6);
+
+  // página do cerimonialista
+  const [cDl] = await Promise.all([page.waitForEvent('download'), page.getByTestId('exportar-cerimonial').click()]);
+  const html = readFileSync((await cDl.path())!, 'utf-8');
+  const p2 = await page.context().newPage();
+  await p2.setContent(html);
+  await p2.getByLabel('Buscar convidado').fill('joao');
+  await expect(p2.locator('.r')).toHaveCount(1);
+  await expect(p2.locator('.r')).toContainText('João Pereira');
+  await expect(p2.locator('.r .mesa b')).toHaveText('7');
+  await p2.getByRole('button', { name: 'Por mesa' }).click();
+  await p2.getByLabel('Buscar convidado').fill('5');
+  await expect(p2.locator('.t h2')).toHaveText('Mesa 5');
+  await p2.close();
+});
+
+test('botão + Mesa adiciona uma mesa de 10 lugares', async ({ page }) => {
+  await start(page);
+  await page.getByTestId('adicionar-mesa').click();
+  await expect(page.getByTestId('nova-mesa-lugares')).toHaveValue('10');
+  await page.getByTestId('nova-mesa-redonda').click();
+  await expect(page.locator('g[data-testid^=mesa-]')).toHaveCount(30);
+  await page.getByTestId('concluir-calibracao').click();
+  await page.getByTestId('mesa-30').click();
+  await expect(page.locator('[data-testid^=assento-30-]')).toHaveCount(10);
+  await page.reload();
+  await expect(page.locator('g[data-testid^=mesa-]')).toHaveCount(30);
 });

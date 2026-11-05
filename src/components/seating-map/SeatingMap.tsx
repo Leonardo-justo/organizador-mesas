@@ -1,4 +1,5 @@
 import { Crosshair, Maximize2, Minus, MoveHorizontal, Plus, Settings2, Type } from 'lucide-react';
+import { AddTableButton } from './AddTableButton';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { defaultTables } from '../../data/floorplan';
 import { SPACING_ON, TABLE_BLOCK_MASKS, clamp01, spreadPoint, spreadTables, unspreadPoint } from '../../domain/layout';
@@ -162,6 +163,7 @@ export function SeatingMap() {
           {!calibrating && (
             <button className="btn fantasma" onClick={() => open({ type: 'plan' })} title="Trocar a imagem da planta">Planta</button>
           )}
+          {!calibrating && <AddTableButton />}
           {!calibrating && (
             <button className="btn" onClick={startCalibration} title="Arrastar as mesas para outro lugar do salão">
               <Settings2 /> Mover mesas

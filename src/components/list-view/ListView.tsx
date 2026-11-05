@@ -1,3 +1,4 @@
+import { AddTableButton } from '../seating-map/AddTableButton';
 /**
  * Tela "Lista": as mesas como cartões, sem mapa 2D/3D.
  * Você vai adicionando nomes e eles entram no próximo lugar livre,
@@ -259,6 +260,7 @@ export function ListView() {
             >
               <UserX /> Tirar todos das mesas
             </button>
+            <AddTableButton label="Nova mesa" goToMap={false} />
             <button className="btn" onClick={() => open({ type: 'import' })}><Users /> Importar convidados</button>
           </div>
         </div>

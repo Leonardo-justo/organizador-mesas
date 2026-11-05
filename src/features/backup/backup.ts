@@ -2,6 +2,7 @@ import { LEGACY_SEATS, originalGroup } from '../../data/floorplan';
 import { parseSeatKey, seatKey, validateState, withTableSpec } from '../../domain/seating';
 import { validateTables } from '../../domain/layout';
 import type { Guest, Layout, SeatingState, TableDef, ViewPrefs } from '../../domain/types';
+import { isSourceSheet, type SourceSheet } from '../import-export/sourceSheet';
 
 export const BACKUP_FORMAT = 'organizador-mesas-casamento';
 export const BACKUP_VERSION = 1;
@@ -17,12 +18,16 @@ export interface BackupFile {
   plantaPersonalizada?: string;
   /** Versão do layout de mesas (ausente em backups antigos). */
   versaoMesas?: number;
+  /** Planilha importada, para exportar no mesmo formato. */
+  planilhaOriginal?: SourceSheet;
 }
 
 export interface AppSnapshot {
   seating: SeatingState;
   layout: Layout;
   prefs: ViewPrefs;
+  /** Última planilha importada (para exportar como entrou). */
+  sourceSheet?: SourceSheet | null;
 }
 
 export function createBackup(snap: AppSnapshot, now = new Date()): BackupFile {
@@ -41,6 +46,7 @@ export function createBackup(snap: AppSnapshot, now = new Date()): BackupFile {
     preferencias: snap.prefs,
     plantaPersonalizada: snap.layout.customPlan,
     versaoMesas: snap.layout.version,
+    planilhaOriginal: snap.sourceSheet ?? undefined,
   };
 }
 
@@ -113,7 +119,7 @@ export function parseBackup(text: string, fallbackPrefs: ViewPrefs): RestoreResu
   const prefs: ViewPrefs = { ...fallbackPrefs, ...(b.preferencias ?? {}) };
   return {
     ok: true,
-    snapshot: { seating, layout: { tables, customPlan: b.plantaPersonalizada || undefined, version: typeof b.versaoMesas === 'number' ? b.versaoMesas : undefined }, prefs },
+    snapshot: { seating, layout: { tables, customPlan: b.plantaPersonalizada || undefined, version: typeof b.versaoMesas === 'number' ? b.versaoMesas : undefined }, prefs, sourceSheet: isSourceSheet(b.planilhaOriginal) ? b.planilhaOriginal : null },
     summary: `${Object.keys(guests).length} convidados e ${Object.keys(assignments).length} lugares ocupados`,
   };
 }

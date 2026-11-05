@@ -1,11 +1,12 @@
-import { FileSpreadsheet } from 'lucide-react';
+import { FileSpreadsheet, Link2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import * as S from '../../domain/seating';
 import { RSVP_LABEL } from '../../domain/types';
+import { applyImport, matchRows, type ImportMode, type SeatMode } from '../../features/import-export/applyImport';
 import {
-  FIELD_LABELS, buildPreview, detectHeader, detectMapping, readSpreadsheet,
-  type ColumnMapping, type FieldKey,
+  FIELD_LABELS, buildPreview, detectHeader, detectMapping, parseSheetText, readSpreadsheetFull,
+  type ColumnMapping, type FieldKey, type SheetData,
 } from '../../features/import-export/importGuests';
+import { fetchGoogleSheetCsv, type SourceSheet } from '../../features/import-export/sourceSheet';
 import { useApp } from '../../state/store';
 import { useUi } from '../../state/ui';
 import { Modal } from '../common/Modal';
@@ -16,13 +17,18 @@ export function ImportDialog() {
   const close = useUi((s) => s.close);
   const seating = useApp((s) => s.seating);
   const apply = useApp((s) => s.apply);
+  const lastSheet = useApp((s) => s.sourceSheet);
+  const setSourceSheet = useApp((s) => s.setSourceSheet);
+  const [googleUrl, setGoogleUrl] = useState(lastSheet?.googleUrl ?? '');
+  const [fromGoogle, setFromGoogle] = useState('');
+  const [preamble, setPreamble] = useState<string[][]>([]);
   const [step, setStep] = useState<Step>('arquivo');
   const [fileName, setFileName] = useState('');
   const [rows, setRows] = useState<string[][]>([]);
   const [hasHeader, setHasHeader] = useState(true);
   const [mapping, setMapping] = useState<ColumnMapping | null>(null);
-  const [mode, setMode] = useState<'adicionar' | 'substituir'>('adicionar');
-  const [seatMode, setSeatMode] = useState<'lista' | 'sequencia' | 'planilha'>('lista');
+  const [mode, setMode] = useState<ImportMode>(Object.keys(seating.guests).length ? 'atualizar' : 'adicionar');
+  const [seatMode, setSeatMode] = useState<SeatMode>('lista');
   const [replaceOk, setReplaceOk] = useState(false);
   const [overrides, setOverrides] = useState<Record<number, boolean>>({});
   const [error, setError] = useState('');
@@ -31,74 +37,81 @@ export function ImportDialog() {
 
   const existing = useMemo(() => Object.values(seating.guests), [seating.guests]);
   const preview = useMemo(
-    () => (mapping ? buildPreview(rows, mapping, hasHeader, mode === 'substituir' ? [] : existing) : null),
+    () => (mapping ? buildPreview(rows, mapping, hasHeader, mode === 'adicionar' ? existing : []) : null),
     [rows, mapping, hasHeader, mode, existing],
   );
   const included = preview?.rows.filter((r) => overrides[r.line] ?? r.include) ?? [];
+  const matches = useMemo(
+    () => (mode === 'atualizar' && preview ? matchRows(preview.rows, existing) : new Map<number, string>()),
+    [mode, preview, existing],
+  );
+  const matchedCount = included.filter((r) => matches.has(r.line)).length;
   const width = Math.max(0, ...rows.map((r) => r.length));
   const colName = (i: number) => (hasHeader && rows[0]?.[i] ? rows[0][i] : `Coluna ${String.fromCharCode(65 + (i % 26))}`);
+
+  const loadSheet = (data: SheetData, name: string, url = '') => {
+    if (!data.rows.length) throw new Error('A planilha está vazia.');
+    const header = detectHeader(data.rows);
+    const m = detectMapping(data.rows, header);
+    setRows(data.rows); setPreamble(data.preamble); setHasHeader(header); setMapping(m); setFileName(name); setOverrides({});
+    setFromGoogle(url);
+    setSeatMode(m.table >= 0 ? 'planilha' : 'lista');
+    setStep('colunas');
+  };
 
   const onFile = async (f: File | undefined) => {
     if (!f) return;
     setError(''); setBusy(true);
     try {
-      const data = await readSpreadsheet(f);
-      if (!data.length) throw new Error('O arquivo está vazio.');
-      const header = detectHeader(data);
-      const m = detectMapping(data, header);
-      setRows(data); setHasHeader(header); setMapping(m); setFileName(f.name); setOverrides({});
-      setSeatMode(m.table >= 0 ? 'planilha' : 'lista');
-      setStep('colunas');
+      loadSheet(await readSpreadsheetFull(f), f.name);
     } catch (e) {
       setError(`Não foi possível ler “${f.name}”: ${(e as Error).message}. Use .xlsx, .xls ou .csv.`);
     } finally { setBusy(false); }
   };
 
+  const onGoogle = async () => {
+    setError(''); setBusy(true);
+    try {
+      const text = await fetchGoogleSheetCsv(googleUrl);
+      loadSheet(parseSheetText(text), 'Google Planilhas', googleUrl.trim());
+    } catch (e) {
+      setError((e as Error).message);
+    } finally { setBusy(false); }
+  };
+
   const doImport = () => {
-    if (!preview) return;
-    const guests = included.map((r) => r.guest);
-    if (!guests.length) { setError('Nenhuma linha selecionada para importar.'); return; }
-    const base = mode === 'substituir' ? { guests: {}, assignments: {} } : seating;
-    let r = S.addGuests(base, guests);
-    let seatedMsg = ' Todos ficaram na lista, sem mesa.';
-    if (r.ok && seatMode === 'planilha') {
-      // cada convidado na mesa indicada na planilha; quem "não vai" fica na lista
-      const items = included.filter((x) => x.table && x.guest.rsvp !== 'recusado').map((x) => ({ id: x.guest.id, table: x.table! }));
-      const declinedWithTable = included.filter((x) => x.table && x.guest.rsvp === 'recusado').length;
-      const res = S.placeByTable(r.state, items);
-      if (res.ok) {
-        const st = res.state;
-        r = { ok: true, state: st };
-        const full = res.issues.filter((i) => i.reason === 'mesa-lotada');
-        const missing = res.issues.filter((i) => i.reason === 'mesa-inexistente');
-        const nameOf = (id: string) => st.guests[id]?.fullName ?? '';
-        seatedMsg = ` ${res.placed} convidado(s) colocados nas mesas indicadas na planilha; ${guests.length - res.placed} ficaram na lista sem mesa.` +
-          (declinedWithTable ? ` ${declinedWithTable} marcado(s) como "não vai" tinham mesa e ficaram fora.` : '') +
-          (full.length ? ` Mesa lotada para: ${full.map((i) => `${nameOf(i.id)} (mesa ${i.table})`).join(', ')}.` : '') +
-          (missing.length ? ` Mesa inexistente para: ${missing.map((i) => `${nameOf(i.id)} (mesa ${i.table})`).join(', ')}.` : '');
-      } else {
-        r = res;
-      }
-    } else if (r.ok && seatMode === 'sequencia') {
-      const confirmed = guests.filter((g) => g.rsvp === 'confirmado').map((g) => g.id);
-      const seq = confirmed.length ? S.placeSequential(r.state, confirmed, 1) : null;
-      if (seq?.ok) {
-        r = seq;
-        seatedMsg = ` ${seq.placed} confirmado(s) colocados nas mesas, na ordem da planilha${seq.left ? `; ${seq.left} ficaram sem lugar (salão cheio)` : ''}.`;
-      } else {
-        seatedMsg = ' Nenhum confirmado para colocar nas mesas; todos ficaram na lista.';
-      }
-    }
-    if (apply(r, mode === 'substituir' ? 'Substituir convidados (importação)' : 'Importar convidados')) {
-      const skipped = preview.rows.length - included.length;
-      setResult(
-        `${guests.length} convidado(s) importado(s).${seatedMsg}` +
-          (mode === 'substituir' ? ' — cadastros anteriores e a distribuição foram substituídos' : '') +
-          `. ${skipped ? `${skipped} possível(is) duplicata(s) não importada(s). ` : ''}` +
-          `${preview.emptyLines.length} linha(s) vazia(s) e ${preview.errorLines.length} linha(s) com erro ignoradas.`,
-      );
-      setStep('resultado');
-    }
+    if (!preview || !mapping) return;
+    if (!included.length) { setError('Nenhuma linha selecionada para importar.'); return; }
+    const mapped = new Set((Object.keys(mapping) as FieldKey[]).filter((k) => mapping[k] >= 0));
+    const res = applyImport(seating, included, mode, seatMode, mapped);
+    if (!res.ok) { setError(res.reason); return; }
+    const o = res.outcome;
+    const label = mode === 'substituir' ? 'Substituir convidados (importação)' : mode === 'atualizar' ? 'Atualizar lista (importação)' : 'Importar convidados';
+    if (!apply({ ok: true, state: o.state }, label)) return;
+    // guarda a planilha como entrou, para exportar com a coluna de mesa preenchida
+    const rowGuest: Record<number, string> = {};
+    o.rowGuest.forEach((id, line) => { rowGuest[line - 1] = id; });
+    const sheet: SourceSheet = {
+      fileName: fromGoogle ? 'lista-convidados.xlsx' : fileName, importedAt: new Date().toISOString(),
+      preamble, rows, hasHeader, mapping, rowGuest, googleUrl: fromGoogle || undefined,
+    };
+    if (mode !== 'adicionar' || !lastSheet) setSourceSheet(sheet);
+    const declinedWithTable = included.filter((r) => (r.table ?? 0) > 0 && r.guest.rsvp === 'recusado').length;
+    const parts = [
+      mode === 'atualizar'
+        ? `${o.updated} convidado(s) atualizados (cada um continua no lugar onde estava) e ${o.added} novo(s) adicionados.`
+        : `${o.added} convidado(s) importado(s)${mode === 'substituir' ? ' — cadastros anteriores e a distribuição foram substituídos' : ''}.`,
+      seatMode === 'lista' ? 'Novos convidados ficaram na lista, sem mesa.'
+        : seatMode === 'sequencia' ? `${o.placed} confirmado(s) colocados nas mesas, em sequência.`
+          : `${o.placed} convidado(s) colocados nas mesas indicadas na planilha.`,
+      seatMode === 'planilha' && declinedWithTable ? `${declinedWithTable} marcado(s) como "não vai" não foram colocados.` : '',
+      o.issues.length ? `Ficaram sem lugar (mesa lotada ou inexistente): ${o.issues.join(', ')}.` : '',
+      o.notInSheet ? `${o.notInSheet} convidado(s) que estavam aqui não aparecem na nova planilha e foram mantidos.` : '',
+      o.declinedSeated.length ? `Atenção: estão sentados mas agora marcados como “não vai”: ${o.declinedSeated.join(', ')}.` : '',
+      `${preview.emptyLines.length} linha(s) vazia(s) e ${preview.errorLines.length} linha(s) com erro ignoradas.`,
+    ];
+    setResult(parts.filter(Boolean).join(' '));
+    setStep('resultado');
   };
 
   const footer =
@@ -111,7 +124,7 @@ export function ImportDialog() {
           onClick={doImport}
           data-testid="confirmar-importacao"
         >
-          Importar {included.length} convidado(s)
+          {mode === 'atualizar' ? `Atualizar lista (${included.length} linhas)` : `Importar ${included.length} convidado(s)`}
         </button>
       </>
     ) : step === 'resultado' ? (
@@ -132,8 +145,19 @@ export function ImportDialog() {
             <FileSpreadsheet /> {busy ? 'Lendo arquivo…' : 'Selecionar arquivo (.xlsx, .xls ou .csv)'}
             <input type="file" accept=".xlsx,.xls,.csv,.txt,.ods" hidden onChange={(e) => void onFile(e.target.files?.[0])} data-testid="arquivo-importacao" />
           </label>
-          <div className="aviso">
-            <b>Google Planilhas:</b> abra a planilha, vá em Arquivo → Fazer download → Microsoft Excel (.xlsx) ou Valores separados por vírgula (.csv), e selecione o arquivo baixado aqui.
+          <div className="campo" style={{ marginTop: 4 }}>
+            <span><b>Ou cole o link do Google Planilhas</b></span>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <input
+                className="entrada" style={{ flex: 1, minWidth: 260 }} placeholder="https://docs.google.com/spreadsheets/d/…"
+                value={googleUrl} onChange={(e) => setGoogleUrl(e.target.value)} data-testid="link-google"
+                onKeyDown={(e) => { if (e.key === 'Enter' && googleUrl.trim()) void onGoogle(); }}
+              />
+              <button className="btn" disabled={!googleUrl.trim() || busy} onClick={() => void onGoogle()} data-testid="importar-google"><Link2 /> Ler planilha</button>
+            </div>
+            <small style={{ color: 'var(--suave)' }}>
+              No Google Planilhas: Compartilhar → Acesso geral → “Qualquer pessoa com o link” (Leitor). O organizador só lê a planilha; para devolver as mesas, use Exportar lista → planilha como entrou.
+            </small>
           </div>
           <p className="nota" style={{ margin: 0 }}>Colunas reconhecidas automaticamente: nome, família/grupo, acompanhante, presença/confirmação e observações. Você pode corrigir no próximo passo.</p>
         </>
@@ -142,7 +166,7 @@ export function ImportDialog() {
       {step === 'colunas' && mapping && preview && (
         <>
           <div style={{ fontSize: 14 }}>
-            Arquivo <b>{fileName}</b>: {rows.length} linha(s).{' '}
+            {fromGoogle ? <>Google Planilhas</> : <>Arquivo <b>{fileName}</b></>}: {rows.length} linha(s).{' '}
             <label style={{ marginLeft: 8 }}>
               <input type="checkbox" checked={hasHeader} onChange={(e) => { setHasHeader(e.target.checked); setMapping(detectMapping(rows, e.target.checked)); }} /> A primeira linha é o cabeçalho
             </label>
@@ -160,7 +184,9 @@ export function ImportDialog() {
           </div>
 
           <div className="aviso ok" data-testid="resumo-importacao">
-            <b>{included.length}</b> convidado(s) serão adicionados.
+            {mode === 'atualizar'
+              ? <><b>{matchedCount}</b> convidado(s) já cadastrados serão atualizados (sem mudar de lugar) e <b>{included.length - matchedCount}</b> novo(s) serão adicionados.</>
+              : <><b>{included.length}</b> convidado(s) serão adicionados.</>}
             {preview.emptyLines.length > 0 && ` ${preview.emptyLines.length} linha(s) vazia(s) serão ignoradas.`}
             {preview.rows.some((r) => r.duplicateOf) && ` ${preview.rows.filter((r) => r.duplicateOf).length} nome(s) parecido(s) ou repetido(s) — confira na tabela (só ficam desmarcados os que já existem com o mesmo nome).`}
           </div>
@@ -190,7 +216,7 @@ export function ImportDialog() {
                       <td>{RSVP_LABEL[r.guest.rsvp]}</td>
                       <td>{r.table ?? ''}</td>
                       <td>{r.guest.notes ?? ''}</td>
-                      <td>{r.issues.join('; ')}</td>
+                      <td>{mode === 'atualizar' ? (matches.has(r.line) ? 'Atualiza cadastro' : 'Novo') : r.issues.join('; ')}</td>
                     </tr>
                   );
                 })}
@@ -200,6 +226,12 @@ export function ImportDialog() {
           {preview.rows.length > 400 && <p className="nota" style={{ margin: 0 }}>Mostrando as primeiras 400 linhas; todas as válidas serão importadas.</p>}
 
           <div className="opcoes" role="radiogroup" aria-label="Como importar">
+            {existing.length > 0 && (
+              <label className="opcao">
+                <input type="radio" name="modo" checked={mode === 'atualizar'} onChange={() => setMode('atualizar')} data-testid="modo-atualizar" />
+                <span><b>Atualizar a lista sem perder a distribuição (recomendado)</b><small>Quem já está cadastrado (mesmo nome) tem os dados atualizados e continua no mesmo lugar; nomes novos entram; ninguém é apagado.</small></span>
+              </label>
+            )}
             <label className="opcao">
               <input type="radio" name="modo" checked={mode === 'adicionar'} onChange={() => setMode('adicionar')} />
               <span><b>Adicionar aos convidados existentes</b><small>Os {existing.length} cadastros atuais e a distribuição continuam como estão.</small></span>
@@ -213,7 +245,7 @@ export function ImportDialog() {
             {mapping.table >= 0 && (
               <label className="opcao">
                 <input type="radio" name="mesas" checked={seatMode === 'planilha'} onChange={() => setSeatMode('planilha')} data-testid="importar-pela-mesa" />
-                <span><b>Colocar cada um na mesa indicada na planilha</b><small>Usa a coluna “{colName(mapping.table)}”. Quem não tem mesa (ou “não vai”) fica na lista; se a mesa lotar, o excedente também fica na lista.</small></span>
+                <span><b>Colocar na mesa indicada na planilha</b><small>Usa a coluna “{colName(mapping.table)}”, só para quem ainda não tem lugar. Quem não tem mesa (ou “não vai”) fica na lista; se a mesa lotar, o excedente também fica na lista.</small></span>
               </label>
             )}
             <label className="opcao">

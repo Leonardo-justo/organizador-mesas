@@ -1,4 +1,4 @@
-import { Download, FileJson, FileSpreadsheet, Upload } from 'lucide-react';
+import { Download, FileJson, FileSpreadsheet, Share2, Upload, Users } from 'lucide-react';
 import { useState } from 'react';
 import { createBackup, parseBackup } from '../../features/backup/backup';
 import {
@@ -6,6 +6,8 @@ import {
 } from '../../features/import-export/exportGuests';
 import { fileToArrayBuffer } from '../../features/import-export/importGuests';
 import { decodeText } from '../../features/import-export/csv';
+import { sourceSheetFileName, sourceSheetXlsx } from '../../features/import-export/sourceSheet';
+import { ceremonialHtml } from '../../features/import-export/ceremonialPage';
 import { useApp } from '../../state/store';
 import { confirmAction, useUi } from '../../state/ui';
 import { Modal } from '../common/Modal';
@@ -25,6 +27,28 @@ export function ExportDialog() {
     downloadBlob(new Blob([exportCsv(seating, k)], { type: 'text/csv;charset=utf-8' }), `${k}_${dateStamp()}.csv`);
     toast('ok', `${EXPORT_TITLES[k]} exportada (CSV).`);
   };
+  const sheet = useApp((s) => s.sourceSheet);
+  const [withUnseated, setWithUnseated] = useState(false);
+  const comoEntrou = async () => {
+    if (!sheet) return;
+    downloadBlob(await sourceSheetXlsx(sheet, seating), sourceSheetFileName(sheet));
+    toast('ok', 'Planilha exportada no mesmo formato da importação, com a mesa de cada convidado.');
+  };
+  const cerimonial = async (share: boolean) => {
+    const html = ceremonialHtml(seating, 'Mesas do casamento', withUnseated);
+    const name = `consulta-mesas_${dateStamp()}.html`;
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    if (share) {
+      const file = new File([blob], name, { type: 'text/html' });
+      const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
+      if (nav.share && nav.canShare?.({ files: [file] })) {
+        try { await nav.share({ files: [file], title: 'Mesas do casamento' }); return; } catch { /* cancelado */ return; }
+      }
+      toast('info', 'Este navegador não compartilha arquivos direto; o arquivo foi baixado — envie pelo WhatsApp ou e-mail.');
+    }
+    downloadBlob(blob, name);
+    if (!share) toast('ok', 'Página do cerimonialista baixada. Envie o arquivo — ele abre no celular, sem internet.');
+  };
   const xlsx = async () => {
     downloadBlob(await exportXlsxBlob(seating), `convidados-mesas_${dateStamp()}.xlsx`);
     toast('ok', 'Planilha Excel exportada com as três listas.');
@@ -33,7 +57,29 @@ export function ExportDialog() {
     <Modal title="Exportar lista" subtitle="Arquivos com acentuação preservada, prontos para abrir no Excel ou no Google Planilhas." onClose={close} wide
       footer={<><button className="btn" onClick={() => open({ type: 'print' })}>Imprimir mapa e listas</button><button className="btn" onClick={close}>Fechar</button></>}
     >
-      <button className="btn primario" style={{ alignSelf: 'flex-start', minHeight: 42 }} onClick={() => void xlsx()} data-testid="exportar-xlsx">
+      <div className="opcao" style={{ cursor: 'default', alignItems: 'center' }}>
+        <span style={{ flex: 1 }}>
+          <b>Planilha como entrou, com as mesas</b>
+          <small>{sheet
+            ? <>Mesmas colunas e ordem de “{sheet.fileName}”, com o número da mesa preenchido na coluna de mesa{sheet.mapping.table < 0 ? ' (coluna “Mesa” adicionada no fim)' : ''}. Quem foi incluído depois aparece no final.</>
+            : <>Importe uma planilha (Importar) para poder exportar no mesmo formato dela.</>}</small>
+        </span>
+        <button className="btn primario" disabled={!sheet} onClick={() => void comoEntrou()} data-testid="exportar-como-entrou"><FileSpreadsheet /> Baixar .xlsx</button>
+      </div>
+      <div className="opcao" style={{ cursor: 'default', alignItems: 'center' }}>
+        <span style={{ flex: 1 }}>
+          <b>Página do cerimonialista</b>
+          <small>Um arquivo simples para o celular: digita o nome e aparece a mesa e o lugar (também lista por mesa). Funciona sem internet e mostra só nome e mesa. Gere de novo sempre que mudar a distribuição.</small>
+          <label style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4, fontSize: 13 }}>
+            <input type="checkbox" checked={withUnseated} onChange={(e) => setWithUnseated(e.target.checked)} /> Incluir quem ainda está sem mesa
+          </label>
+        </span>
+        <span style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <button className="btn" onClick={() => void cerimonial(false)} data-testid="exportar-cerimonial"><Users /> Baixar</button>
+          <button className="btn" onClick={() => void cerimonial(true)}><Share2 /> Compartilhar</button>
+        </span>
+      </div>
+      <button className="btn" style={{ alignSelf: 'flex-start', minHeight: 42 }} onClick={() => void xlsx()} data-testid="exportar-xlsx">
         <FileSpreadsheet /> Baixar planilha Excel (.xlsx) com as três listas
       </button>
       <div className="opcoes">

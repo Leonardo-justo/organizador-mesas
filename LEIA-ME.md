@@ -25,10 +25,12 @@ No Windows também dá para usar `iniciar-windows.bat`; no Mac/Linux, `./iniciar
 ## Importar a planilha
 
 1. Clique em **Importar convidados**.
-2. Escolha o arquivo `.xlsx`, `.xls` ou `.csv`. No Google Planilhas: Arquivo → Fazer download → Microsoft Excel (.xlsx) ou CSV.
+2. Escolha o arquivo `.xlsx`, `.xls` ou `.csv` — **ou cole o link de uma planilha do Google** e clique em **Ler planilha**. Para o link funcionar, compartilhe a planilha como "Qualquer pessoa com o link → Leitor". (A leitura é só de ida: o organizador não grava nada no Google. Para levar as mesas de volta, use Exportar → *Planilha como entrou* e importe no Google.) Se o link não abrir, baixe no Google em Arquivo → Fazer download → Excel (.xlsx).
 3. Confira a prévia: a coluna de nome é reconhecida automaticamente (também família/grupo, acompanhante, presença e observações). Se algo vier errado, troque a correspondência de colunas.
 4. Linhas vazias são ignoradas. Linhas sem nome aparecem como erro, e as possíveis duplicatas vêm desmarcadas (marque se forem pessoas diferentes).
-5. Escolha **Adicionar aos existentes** ou **Substituir todos** (esta opção pede confirmação explícita) e confirme.
+5. Escolha como entrar:
+   - **Atualizar a lista sem perder a distribuição** (padrão quando já há convidados): cada nome é casado com o cadastro de mesmo nome (sem diferenciar acentos/maiúsculas); os dados são atualizados e **ninguém sai do lugar**. Nomes novos entram na lista e, se a planilha tiver coluna de mesa, vão para a mesa indicada. Quem sumiu da planilha continua no organizador (o resultado avisa quantos).
+   - **Adicionar aos existentes** ou **Substituir todos** (esta pede confirmação explícita).
 
 Para testar, use `exemplos/convidados-exemplo.csv`, que tem 60 nomes fictícios.
 
@@ -45,6 +47,8 @@ O botão **Mesas em lista**, no topo, mostra todas as mesas como cartões, sem o
 Na importação, você escolhe se os convidados ficam só na lista ou se os confirmados já vão para as mesas.
 
 ## Mesas: mover, adicionar, remover
+
+O botão **+ Mesa**, na barra do mapa, adiciona na hora uma mesa redonda ou retangular (10 lugares por padrão) — ela já fica salva e aparece no canto do mapa para você arrastar. Na tela *Mesas em lista* há o mesmo botão (**Nova mesa**).
 
 No botão **Mover mesas**, na barra do mapa, você pode:
 
@@ -79,6 +83,8 @@ Clique em **Backup → Baixar backup completo (.json)**. O arquivo inclui convid
 
 ## Exportar e imprimir
 
+- **Planilha como entrou, com as mesas**: devolve a última planilha importada com as mesmas colunas, título e ordem, só com o número da mesa preenchido na coluna de mesa (se não havia, é criada uma coluna "Mesa" no fim). Convidados incluídos depois aparecem no final.
+- **Página do cerimonialista**: baixa (ou compartilha pelo celular) um arquivo `consulta-mesas_….html`. O cerimonialista abre no celular, digita o nome e vê a mesa e o lugar; há também a visão por mesa. Funciona sem internet e só contém nome, mesa e lugar. Gere de novo sempre que mudar a distribuição.
 - **Exportar lista**: gera um `.xlsx` com 3 abas (por mesa, alfabética, sem lugar) ou cada lista em `.csv` (UTF-8 com `;`, que abre direto no Excel em português).
 - **Imprimir mapa**: oferece A3 ou A4 em paisagem, iniciais nas cadeiras (opcional), legenda, os lugares de cada mesa e lista alfabética. O ícone de impressora no painel de uma mesa imprime só aquela mesa. Para gerar PDF, escolha "Salvar como PDF".
 

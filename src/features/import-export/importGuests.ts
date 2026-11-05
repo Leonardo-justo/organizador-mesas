@@ -36,27 +36,41 @@ export function fileToArrayBuffer(file: Blob): Promise<ArrayBuffer> {
   });
 }
 
-export async function readSpreadsheet(file: File): Promise<string[][]> {
+/** Planilha lida: linhas a partir do cabeçalho e as linhas de título que vinham acima dele. */
+export interface SheetData {
+  rows: string[][];
+  preamble: string[][];
+}
+
+export async function readSpreadsheetFull(file: File): Promise<SheetData> {
   const name = file.name.toLowerCase();
   const buf = await fileToArrayBuffer(file);
   if (name.endsWith('.csv') || name.endsWith('.txt') || file.type === 'text/csv') {
-    return trimRows(parseCsv(decodeText(buf)));
+    return splitHeader(parseCsv(decodeText(buf)));
   }
   const XLSX = await import('xlsx');
   const wb = XLSX.read(buf, { type: 'array', codepage: 65001 });
   const sheet = wb.Sheets[wb.SheetNames[0]];
-  if (!sheet) return [];
+  if (!sheet) return { rows: [], preamble: [] };
   const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: false, defval: '', blankrows: true });
-  return trimRows(rows.map((r) => r.map((c) => cleanText(c))));
+  return splitHeader(rows.map((r) => r.map((c) => cleanText(c))));
 }
 
-function trimRows(rows: string[][]): string[][] {
-  let out = rows.map((r) => r.map((c) => cleanText(c)));
+export async function readSpreadsheet(file: File): Promise<string[][]> {
+  return (await readSpreadsheetFull(file)).rows;
+}
+
+/** Texto CSV (ex.: Google Planilhas) já separado em título e tabela. */
+export function parseSheetText(text: string): SheetData {
+  return splitHeader(parseCsv(text.replace(/^\uFEFF/, '')));
+}
+
+export function splitHeader(rows: string[][]): SheetData {
+  const out = rows.map((r) => r.map((c) => cleanText(c)));
   while (out.length && out[out.length - 1].every((c) => !c)) out.pop();
-  // Planilhas com título acima da tabela: começa na linha do cabeçalho
+  // Planilhas com título acima da tabela: a tabela começa na linha do cabeçalho
   const h = findHeaderRow(out);
-  if (h > 0) out = out.slice(h);
-  return out;
+  return { rows: out.slice(h), preamble: out.slice(0, h) };
 }
 
 const headerScore = (r: string[]) =>
