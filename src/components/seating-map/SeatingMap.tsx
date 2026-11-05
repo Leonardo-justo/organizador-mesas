@@ -104,7 +104,7 @@ export function SeatingMap() {
     if (!t0) return;
     // mantém o ponto onde a mesa foi "pega" (sem pular para o centro)
     const start = new DOMPoint(e.clientX, e.clientY).matrixTransform(inv);
-    const shown0 = spreadPoint(n, t0.x, t0.y, factor);
+    const shown0 = spreadPoint(t0.group, t0.x, t0.y, factor);
     const off = { x: shown0.x - start.x / plan.width, y: shown0.y - start.y / plan.height };
     const move = (ev: PointerEvent) => {
       // recalcula a cada movimento: o mapa pode mudar de tamanho durante o arraste
@@ -112,7 +112,7 @@ export function SeatingMap() {
       const pt = new DOMPoint(ev.clientX, ev.clientY).matrixTransform(m ? m.inverse() : inv);
       const dx = clamp01(pt.x / plan.width + off.x);
       const dy = clamp01(pt.y / plan.height + off.y);
-      const real = unspreadPoint(n, dx, dy, factor);
+      const real = unspreadPoint(t0.group, dx, dy, factor);
       moveDraft(n, Math.round(real.x * 10000) / 10000, Math.round(real.y * 10000) / 10000);
     };
     const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };

@@ -25,6 +25,11 @@ export interface TableDef {
   seatRotation: number;
   /** Quantidade de lugares desta mesa. */
   seats: number;
+  /**
+   * Bloco da planta original para o espaçamento visual ('L' = esquerdo, 'R' = direito,
+   * null = não se afasta). Acompanha a mesa física quando o número muda.
+   */
+  group?: 'L' | 'R' | null;
 }
 
 /** Identificador de assento: "<mesa>-<lugar>", ex.: "12-3". */

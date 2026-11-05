@@ -397,6 +397,33 @@ test('importar planilha com coluna de mesa coloca cada um na sua mesa', async ({
   await expect(row(page, 'Carla Dias')).toContainText('Sem lugar');
 });
 
+test('trocar o número da mesa', async ({ page }) => {
+  await start(page);
+  await importSample(page);
+  await drag(page, row(page, 'Aline Almeida'), page.getByTestId('mesa-16'));
+  await drag(page, row(page, 'André Nascimento'), page.getByTestId('mesa-15'));
+  const before = (await page.getByTestId('mesa-16').locator('circle.anel').boundingBox())!;
+  await page.getByTestId('mesa-16').click();
+  await page.getByTestId('trocar-numero').click();
+  await page.getByTestId('novo-numero').fill('40');
+  await page.getByTestId('salvar-numero').click();
+  await expect(page.getByTestId('painel-mesa')).toContainText('Mesa 40');
+  await expect(row(page, 'Aline Almeida')).toContainText('Mesa 40 · lugar 1');
+  const after = (await page.getByTestId('mesa-40').locator('circle.anel').boundingBox())!;
+  expect(Math.abs(after.x - before.x)).toBeLessThan(1); // continua no mesmo lugar do salão
+  await expect(page.locator('g[data-testid=mesa-16]')).toHaveCount(0);
+  // número que já existe: as duas mesas trocam de número
+  await page.getByTestId('trocar-numero').click();
+  await page.getByTestId('novo-numero').fill('15');
+  await expect(page.getByRole('dialog')).toContainText('As duas trocam de número');
+  await page.getByTestId('salvar-numero').click();
+  await expect(row(page, 'Aline Almeida')).toContainText('Mesa 15 · lugar 1');
+  await expect(row(page, 'André Nascimento')).toContainText('Mesa 40 · lugar 1');
+  await expect(page.getByTestId('salvamento')).toContainText('Salvo em');
+  await page.reload();
+  await expect(row(page, 'André Nascimento')).toContainText('Mesa 40 · lugar 1');
+});
+
 test('busca localiza convidado; dados e calibração persistem após recarregar', async ({ page }) => {
   await start(page);
   await importSample(page);

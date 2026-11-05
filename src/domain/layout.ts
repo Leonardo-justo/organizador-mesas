@@ -1,4 +1,4 @@
-import { DEFAULT_SEATS, LAYOUT_VERSION, LEGACY_SEATS, MAX_SEATS_PER_TABLE, MAX_TABLES, defaultTables } from '../data/floorplan';
+import { DEFAULT_SEATS, LAYOUT_VERSION, LEGACY_SEATS, MAX_SEATS_PER_TABLE, MAX_TABLES, defaultTables, originalGroup } from '../data/floorplan';
 import type { TableDef } from './types';
 
 export function validateTables(tables: unknown): string[] {
@@ -35,6 +35,7 @@ export function sanitizeTables(tables: TableDef[] | undefined): TableDef[] {
       ...t,
       seatRotation: Number.isFinite(t.seatRotation) ? t.seatRotation : 0,
       seats: Number.isInteger(t.seats) ? t.seats : LEGACY_SEATS,
+      group: t.group === undefined ? originalGroup(t.number) : t.group,
     }))
     .sort((a, b) => a.number - b.number);
 }
@@ -57,7 +58,7 @@ export function upgradeLayout(old: TableDef[]): TableDef[] {
 export function newTable(tables: TableDef[], shape: TableDef['shape']): TableDef {
   const number = Math.max(0, ...tables.map((t) => t.number)) + 1;
   const k = tables.filter((t) => t.y < 0.2 && t.x < 0.2).length;
-  return { number, shape, x: 0.06 + (k % 3) * 0.05, y: 0.08 + Math.floor(k / 3) * 0.08, seatRotation: 0, seats: DEFAULT_SEATS };
+  return { number, shape, x: 0.06 + (k % 3) * 0.05, y: 0.08 + Math.floor(k / 3) * 0.08, seatRotation: 0, seats: DEFAULT_SEATS, group: null };
 }
 
 export const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
@@ -102,35 +103,55 @@ export function seatOffsets(shape: TableDef['shape'], rotationDeg: number, ringR
  * as coordenadas salvas, o 3D e a impressão continuam fiéis à planta.
  */
 export const SPACING_ON = 1.22;
-const LEFT_BLOCK = (n: number) => n >= 13 && n <= 28;
-const IN_BLOCK = (n: number) => n >= 1 && n <= 28;
+type Group = TableDef['group'];
 
 // Centros fixos dos dois blocos (da planta original): mover uma mesa não desloca as outras.
-const ORIGINAL = defaultTables().filter((t) => IN_BLOCK(t.number));
+const ORIGINAL = defaultTables();
 const centroidOf = (sel: TableDef[]) => ({
   x: sel.reduce((a, t) => a + t.x, 0) / sel.length,
   y: sel.reduce((a, t) => a + t.y, 0) / sel.length,
 });
-const CENTER_LEFT = centroidOf(ORIGINAL.filter((t) => LEFT_BLOCK(t.number)));
-const CENTER_RIGHT = centroidOf(ORIGINAL.filter((t) => !LEFT_BLOCK(t.number)));
-const centerFor = (n: number) => (LEFT_BLOCK(n) ? CENTER_LEFT : CENTER_RIGHT);
+const CENTER_LEFT = centroidOf(ORIGINAL.filter((t) => t.group === 'L'));
+const CENTER_RIGHT = centroidOf(ORIGINAL.filter((t) => t.group === 'R'));
 
-export function spreadPoint(n: number, x: number, y: number, factor: number) {
-  if (!IN_BLOCK(n)) return { x, y }; // mesas novas não se afastam
-  const c = centerFor(n);
+export function spreadPoint(group: Group, x: number, y: number, factor: number) {
+  if (!group) return { x, y }; // mesas fora dos blocos originais não se afastam
+  const c = group === 'L' ? CENTER_LEFT : CENTER_RIGHT;
   return { x: clamp01(c.x + (x - c.x) * factor), y: clamp01(c.y + (y - c.y) * factor) };
 }
 
 /** Inverso de spreadPoint: posição desenhada -> posição real salva. */
-export function unspreadPoint(n: number, x: number, y: number, factor: number) {
-  if (!IN_BLOCK(n)) return { x, y };
-  const c = centerFor(n);
+export function unspreadPoint(group: Group, x: number, y: number, factor: number) {
+  if (!group) return { x, y };
+  const c = group === 'L' ? CENTER_LEFT : CENTER_RIGHT;
   return { x: clamp01(c.x + (x - c.x) / factor), y: clamp01(c.y + (y - c.y) / factor) };
 }
 
 export function spreadTables(tables: TableDef[], factor: number): TableDef[] {
   if (factor === 1) return tables;
-  return tables.map((t) => ({ ...t, ...spreadPoint(t.number, t.x, t.y, factor) }));
+  return tables.map((t) => ({ ...t, ...spreadPoint(t.group, t.x, t.y, factor) }));
+}
+
+/**
+ * Troca o número de uma mesa. Os convidados acompanham a mesa física.
+ * Se o novo número já existir, as duas mesas trocam de número entre si.
+ */
+export function renumberTable<A extends Record<string, string>>(
+  tables: TableDef[], assignments: A, from: number, to: number,
+): { ok: true; tables: TableDef[]; assignments: Record<string, string>; swapped: boolean } | { ok: false; reason: string } {
+  if (!Number.isInteger(to) || to < 1 || to > 999) return { ok: false, reason: 'Use um número inteiro entre 1 e 999.' };
+  if (from === to) return { ok: false, reason: 'A mesa já tem esse número.' };
+  if (!tables.some((t) => t.number === from)) return { ok: false, reason: `A mesa ${from} não existe.` };
+  const swapped = tables.some((t) => t.number === to);
+  const map = (n: number) => (n === from ? to : swapped && n === to ? from : n);
+  const next = tables.map((t) => ({ ...t, number: map(t.number) })).sort((a, b) => a.number - b.number);
+  const out: Record<string, string> = {};
+  for (const [k, id] of Object.entries(assignments)) {
+    const m = /^(\d+)-(\d+)$/.exec(k);
+    if (!m) continue;
+    out[`${map(Number(m[1]))}-${m[2]}`] = id;
+  }
+  return { ok: true, tables: next, assignments: out, swapped };
 }
 
 /** Áreas da imagem com o desenho original das mesas, cobertas quando o mapa está espaçado (px da planta). */

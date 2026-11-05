@@ -11,7 +11,8 @@ export type Dialog =
   | { type: 'print'; onlyTable?: number }
   | { type: 'guest-details'; guestId: string }
   | { type: 'plan' }
-  | { type: 'swap-table'; table: number };
+  | { type: 'swap-table'; table: number }
+  | { type: 'renumber-table'; table: number };
 
 interface UiState {
   dialog: Dialog | null;

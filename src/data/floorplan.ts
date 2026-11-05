@@ -65,6 +65,11 @@ export const ORIGINAL_TABLE_COUNT = 28;
 
 const round4 = (n: number) => Math.round(n * 10000) / 10000;
 
+/** Bloco da planta original pelo número de fábrica (13–28 esquerdo, 1–12 direito). */
+export function originalGroup(n: number): 'L' | 'R' | null {
+  return n >= 13 && n <= 28 ? 'L' : n >= 1 && n <= 12 ? 'R' : null;
+}
+
 export function defaultTables(): TableDef[] {
   return RAW.map(([number, px, py, shape]) => ({
     number,
@@ -73,6 +78,7 @@ export function defaultTables(): TableDef[] {
     y: round4(py / PLAN_HEIGHT),
     seatRotation: 0,
     seats: DEFAULT_SEATS,
+    group: originalGroup(number),
   }));
 }
 

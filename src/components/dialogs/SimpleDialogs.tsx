@@ -316,3 +316,35 @@ export function UpgradeDialog() {
     </Modal>
   );
 }
+
+/** Trocar o número de uma mesa (os convidados acompanham a mesa). */
+export function RenumberTableDialog({ table }: { table: number }) {
+  const tables = useApp((s) => s.layout.tables);
+  const renumber = useApp((s) => s.renumberTable);
+  const close = useUi((s) => s.close);
+  const [value, setValue] = useState('');
+  const to = Number(value);
+  const valid = value.trim() !== '' && Number.isInteger(to) && to >= 1 && to <= 999 && to !== table;
+  const exists = valid && tables.some((t) => t.number === to);
+  const save = () => { if (valid && renumber(table, to)) close(); };
+  return (
+    <Modal
+      title={`Trocar o número da mesa ${table}`}
+      subtitle="A mesa continua no mesmo lugar do salão e os convidados sentados nela continuam com ela."
+      onClose={close}
+      footer={<><button className="btn" onClick={close}>Cancelar</button><button className="btn primario" disabled={!valid} onClick={save} data-testid="salvar-numero">{exists ? `Trocar com a mesa ${to}` : 'Salvar número'}</button></>}
+    >
+      <label className="campo">
+        Novo número
+        <input type="number" min={1} max={999} inputMode="numeric" value={value} onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') save(); }} data-autofocus data-testid="novo-numero" />
+      </label>
+      {exists && (
+        <div className="aviso" role="status">
+          Já existe a mesa {to}. As duas trocam de número: esta passa a ser a {to} e a atual {to} passa a ser a {table}. Cada grupo de convidados continua na sua mesa.
+        </div>
+      )}
+      {value.trim() !== '' && !valid && to !== table && <div className="aviso erro">Use um número inteiro entre 1 e 999.</div>}
+    </Modal>
+  );
+}

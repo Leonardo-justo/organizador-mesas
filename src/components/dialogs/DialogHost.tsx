@@ -3,7 +3,7 @@ import { PrintDialog } from '../print/PrintDialog';
 import { BackupDialog, ExportDialog } from './ExportBackup';
 import { GuestForm } from './GuestForm';
 import { ImportDialog } from './ImportDialog';
-import { ConfirmDialog, FullTableDialog, SwapTableDialog, UpgradeDialog, GuestDetails, GuestPicker, HelpDialog, PlanDialog, ReplaceDialog } from './SimpleDialogs';
+import { ConfirmDialog, FullTableDialog, RenumberTableDialog, SwapTableDialog, UpgradeDialog, GuestDetails, GuestPicker, HelpDialog, PlanDialog, ReplaceDialog } from './SimpleDialogs';
 
 export function DialogHost() {
   const d = useUi((s) => s.dialog);
@@ -22,6 +22,7 @@ export function DialogHost() {
       {d?.type === 'picker' && <GuestPicker table={d.table} seat={d.seat} />}
       {d?.type === 'guest-details' && <GuestDetails guestId={d.guestId} />}
       {d?.type === 'swap-table' && <SwapTableDialog table={d.table} />}
+      {d?.type === 'renumber-table' && <RenumberTableDialog key={d.table} table={d.table} />}
       {d?.type === 'print' && <PrintDialog onlyTable={d.onlyTable} />}
     </>
   );

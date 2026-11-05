@@ -29,7 +29,7 @@ describe('backup', () => {
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.snapshot.seating).toEqual(snap.seating);
-      expect(r.snapshot.layout.tables[0]).toEqual({ number: 1, shape: 'round', x: 0.5, y: 0.5, seatRotation: 36, seats: 10 });
+      expect(r.snapshot.layout.tables[0]).toEqual({ number: 1, shape: 'round', x: 0.5, y: 0.5, seatRotation: 36, seats: 10, group: 'R' });
       expect(r.snapshot.prefs.mode).toBe('3d');
     }
   });
@@ -75,5 +75,34 @@ describe('persistência IndexedDB', () => {
     const loaded = await loadData();
     expect(loaded?.layout.tables[5]).toMatchObject({ number: 6, x: 0.123, y: 0.456 });
     expect(loaded?.layout.tables[0].seatRotation).toBe(36);
+  });
+});
+
+import { renumberTable, spreadTables } from '../../domain/layout';
+describe('trocar o número da mesa', () => {
+  it('muda o número e os convidados acompanham a mesa', () => {
+    const t = defaultTables();
+    const r = renumberTable(t, { '16-1': 'a', '16-2': 'b', '3-1': 'c' }, 16, 40);
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.swapped).toBe(false);
+    expect(r.tables.find((x) => x.number === 40)?.x).toBe(t.find((x) => x.number === 16)?.x);
+    expect(r.tables.some((x) => x.number === 16)).toBe(false);
+    expect(r.assignments).toEqual({ '40-1': 'a', '40-2': 'b', '3-1': 'c' });
+    // o espaçamento visual segue a mesa física (bloco esquerdo), não o número
+    const before = spreadTables(t, 1.22).find((x) => x.number === 16)!;
+    const after = spreadTables(r.tables, 1.22).find((x) => x.number === 40)!;
+    expect(after.x).toBeCloseTo(before.x, 6);
+  });
+  it('se o número já existe, as duas mesas trocam de número', () => {
+    const r = renumberTable(defaultTables(), { '1-1': 'a', '2-5': 'b' }, 1, 2);
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.swapped).toBe(true);
+    expect(r.assignments).toEqual({ '2-1': 'a', '1-5': 'b' });
+    expect(r.tables.map((x) => x.number)).toEqual(Array.from({ length: 29 }, (_, i) => i + 1));
+  });
+  it('recusa números inválidos', () => {
+    expect(renumberTable(defaultTables(), {}, 1, 0).ok).toBe(false);
+    expect(renumberTable(defaultTables(), {}, 1, 1).ok).toBe(false);
+    expect(renumberTable(defaultTables(), {}, 99, 5).ok).toBe(false);
   });
 });

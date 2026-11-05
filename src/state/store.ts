@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { defaultTables } from '../data/floorplan';
 import { emptyHistory, record, redo as hRedo, undo as hUndo, type History } from '../domain/history';
 import { LAYOUT_VERSION } from '../data/floorplan';
-import { SPACING_ON, needsLayoutUpgrade, newTable, sanitizeTables, upgradeLayout } from '../domain/layout';
+import { SPACING_ON, needsLayoutUpgrade, newTable, renumberTable, sanitizeTables, upgradeLayout } from '../domain/layout';
 import * as S from '../domain/seating';
 import type { Guest, Layout, SeatRef, SeatingState, TableDef, ViewPrefs } from '../domain/types';
 import type { AppSnapshot } from '../features/backup/backup';
@@ -93,6 +93,7 @@ export interface AppState {
   setDraftSeats: (n: number, seats: number) => void;
   applyUpgrade: (mode: 'manter' | 'redistribuir' | 'depois') => void;
   checkLayoutUpgrade: () => void;
+  renumberTable: (from: number, to: number) => boolean;
   finishCalibration: (save: boolean) => void;
   setCustomPlan: (dataUrl: string | undefined) => void;
 
@@ -154,6 +155,23 @@ export const useApp = create<AppState>((set, get) => ({
     const preview = S.adaptSeatingToTables(st.seating, upgradeLayout(st.layout.tables), 'manter');
     if (preview.unseated === 0) st.applyUpgrade('manter');
     else set({ pendingUpgrade: true });
+  },
+
+  renumberTable: (from, to) => {
+    const st = get();
+    const r = renumberTable(st.layout.tables, st.seating.assignments, from, to);
+    if (!r.ok) { st.toast('erro', r.reason); return false; }
+    S.setTableSpec(r.tables);
+    const seating = { ...st.seating, assignments: r.assignments };
+    if (S.validateState(seating).length) { S.setTableSpec(st.layout.tables); st.toast('erro', 'Não foi possível trocar o número. Nada foi alterado.'); return false; }
+    set((x) => ({
+      layout: { ...x.layout, tables: r.tables },
+      seating,
+      history: emptyHistory(), // os passos anteriores usavam os números antigos
+      selectedTable: to,
+    }));
+    get().toast('ok', r.swapped ? `As mesas ${from} e ${to} trocaram de número.` : `A mesa ${from} agora é a mesa ${to}.`);
+    return true;
   },
 
   applyUpgrade: (mode) => {

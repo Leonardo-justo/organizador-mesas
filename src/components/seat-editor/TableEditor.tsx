@@ -1,5 +1,5 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core';
-import { ArrowLeftRight, Shuffle, Pencil, Printer, UserPlus, Users, Undo, X } from 'lucide-react';
+import { ArrowLeftRight, Hash, Shuffle, Pencil, Printer, UserPlus, Users, Undo, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { label } from '../../domain/guests';
 import { seatOffsets } from '../../domain/layout';
@@ -100,6 +100,14 @@ export function TableEditor() {
           </div>
         </div>
         <div className="fim">
+          <button
+            className="btn pequeno"
+            onClick={() => open({ type: 'renumber-table', table: tableNo })}
+            title="Trocar o número desta mesa"
+            data-testid="trocar-numero"
+          >
+            <Hash /> Trocar número
+          </button>
           <button
             className="btn pequeno"
             onClick={() => open({ type: 'swap-table', table: tableNo })}

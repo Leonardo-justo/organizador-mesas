@@ -1,4 +1,4 @@
-import { LEGACY_SEATS } from '../../data/floorplan';
+import { LEGACY_SEATS, originalGroup } from '../../data/floorplan';
 import { parseSeatKey, seatKey, validateState, withTableSpec } from '../../domain/seating';
 import { validateTables } from '../../domain/layout';
 import type { Guest, Layout, SeatingState, TableDef, ViewPrefs } from '../../domain/types';
@@ -89,10 +89,11 @@ export function parseBackup(text: string, fallbackPrefs: ViewPrefs): RestoreResu
   }
   // Mesas do próprio backup (lugares = quantidade de cada mesa; backups antigos tinham 10)
   const tables = (b.mesas as BackupFile['mesas'])
-    .map(({ number, shape, x, y, seatRotation, lugares, seats }) => ({
+    .map(({ number, shape, x, y, seatRotation, lugares, seats, group }) => ({
       number, shape, x, y,
       seatRotation: Number(seatRotation) || 0,
       seats: Number.isInteger(lugares) ? lugares : Number.isInteger(seats) ? seats : LEGACY_SEATS,
+      group: group === 'L' || group === 'R' || group === null ? group : originalGroup(number),
     }))
     .sort((a, c) => a.number - c.number);
   const assignments: Record<string, string> = {};
